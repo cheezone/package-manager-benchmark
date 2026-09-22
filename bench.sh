@@ -115,21 +115,28 @@ echo "==> workdir: $WORK"
 
 # ---------- hyperfine helpers ----------
 hf_json() { mktemp -d "/tmp/hf.XXXXXX"; }
-read_ms() {
-  # prints "mean stddev ok" in SECONDS. stddev may be null when runs=1.
-  # ok=1 only when every hyperfine run exited 0.
+
+# Parse one hyperfine --export-json file into $2 (mean stddev ok in seconds).
+# ok=1 when we have a mean AND every exit code is 0 (missing exit_codes => ok).
+hf_stat() {
   node -e '
-    const fs=require("fs");
-    const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-    const r=d.results && d.results[0];
-    if(!r || typeof r.mean!=="number") process.exit(1);
-    const sd=(r.stddev==null?0:r.stddev);
-    const codes=(r.exit_codes||[]);
-    const ok=(codes.length>0 && codes.every(c=>c===0))?1:0;
-    console.log(r.mean.toFixed(4)+" "+sd.toFixed(4)+" "+ok);
-  ' "$1"
+    const fs = require("fs");
+    try {
+      const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const r = d.results && d.results[0];
+      if (!r || typeof r.mean !== "number") process.exit(1);
+      const sd = r.stddev == null ? 0 : r.stddev;
+      const codes = (r.exit_codes || []).map(Number);
+      const ok = codes.length === 0 || codes.every((c) => c === 0) ? 1 : 0;
+      fs.writeFileSync(process.argv[2], `${r.mean.toFixed(6)} ${sd.toFixed(6)} ${ok}`);
+    } catch {
+      process.exit(1);
+    }
+  ' "$1" "$2" 2>/dev/null
 }
-pick() { echo "$1" | awk -v n="${2:-1}" "{print \$$n}"; }
+
+STAT="$(mktemp -d /tmp/bstat.XXXXXX)"
+
 # Real-world fixtures are heavier — slightly fewer cold runs keeps CI sane.
 if [[ "$FIXTURE" == "synthetic" ]]; then
   HF_RUNS_COLD="${HF_RUNS_COLD:-3}"
@@ -145,16 +152,29 @@ else
   HF_RUNS_BUILD="${HF_RUNS_BUILD:-3}"
 fi
 
+report() {
+  # report <name> <statfile>
+  local name="$1" sf="$2"
+  local mean="" sd="" ok=0
+  if [[ -f "$sf" ]]; then
+    read -r mean sd ok < "$sf" || true
+  fi
+  if [[ "${ok:-0}" != "1" || -z "${mean:-}" ]]; then
+    echo "$name: NA (failed or empty)"
+    echo "" > "$sf.missing"
+    return 0
+  fi
+  echo "$name: ${mean} s (±${sd:-0}) ok=1"
+}
+
 # ---------- Scenario 1: cold install ----------
 d=$(hf_json)
 hyperfine --runs "$HF_RUNS_COLD" --warmup 0 \
   --prepare "$COLD_PREPARE" \
   --ignore-failure --export-json "$d/cold.json" \
   "$INSTALL" >/dev/null 2>&1 || true
-COLD_LINE=$(read_ms "$d/cold.json" 2>/dev/null) || COLD_LINE=""
-COLD=$(pick "$COLD_LINE" 1); COLD_SD=$(pick "$COLD_LINE" 2); COLD_OK=$(pick "$COLD_LINE" 3)
-[[ "${COLD_OK:-0}" == "1" ]] || { COLD=""; COLD_SD=""; }
-echo "install_cold: ${COLD:-NA} s (±${COLD_SD:-NA}) ok=${COLD_OK:-0}"
+hf_stat "$d/cold.json" "$STAT/cold" || true
+report install_cold "$STAT/cold"
 
 # ---------- Scenario 2: warm install (cache + lockfile kept) ----------
 ( eval "$WARM_PREPARE"; $WARM_INSTALL >/dev/null 2>&1 ) || true
@@ -163,10 +183,8 @@ hyperfine --runs "$HF_RUNS_WARM" --warmup 0 \
   --prepare "$WARM_PREPARE" \
   --ignore-failure --export-json "$d2/warm.json" \
   "$WARM_INSTALL" >/dev/null 2>&1 || true
-WARM_LINE=$(read_ms "$d2/warm.json" 2>/dev/null) || WARM_LINE=""
-WARM=$(pick "$WARM_LINE" 1); WARM_SD=$(pick "$WARM_LINE" 2); WARM_OK=$(pick "$WARM_LINE" 3)
-[[ "${WARM_OK:-0}" == "1" ]] || { WARM=""; WARM_SD=""; }
-echo "install_warm: ${WARM:-NA} s (±${WARM_SD:-NA}) ok=${WARM_OK:-0}"
+hf_stat "$d2/warm.json" "$STAT/warm" || true
+report install_warm "$STAT/warm"
 
 # ---------- Scenario 3: frozen/CI install (lockfile restore path) ----------
 ( eval "$FROZEN_PREPARE"; $WARM_INSTALL >/dev/null 2>&1 ) || true
@@ -175,10 +193,8 @@ hyperfine --runs "$HF_RUNS_FROZEN" --warmup 0 \
   --prepare "$FROZEN_PREPARE" \
   --ignore-failure --export-json "$dF/frozen.json" \
   "$FROZEN_INSTALL" >/dev/null 2>&1 || true
-FROZEN_LINE=$(read_ms "$dF/frozen.json" 2>/dev/null) || FROZEN_LINE=""
-FROZEN=$(pick "$FROZEN_LINE" 1); FROZEN_SD=$(pick "$FROZEN_LINE" 2); FROZEN_OK=$(pick "$FROZEN_LINE" 3)
-[[ "${FROZEN_OK:-0}" == "1" ]] || { FROZEN=""; FROZEN_SD=""; }
-echo "install_frozen: ${FROZEN:-NA} s (±${FROZEN_SD:-NA}) ok=${FROZEN_OK:-0}"
+hf_stat "$dF/frozen.json" "$STAT/frozen" || true
+report install_frozen "$STAT/frozen"
 
 # ---------- Scenario 4: run noop (PM spawn overhead) ----------
 ( [ -d node_modules ] || $WARM_INSTALL >/dev/null 2>&1 ) || true
@@ -186,40 +202,58 @@ d3=$(hf_json)
 hyperfine --runs "$HF_RUNS_NOOP" --warmup 1 \
   --ignore-failure --export-json "$d3/noop.json" \
   "$RUN $RUN_NOOP_CMD" >/dev/null 2>&1 || true
-NOOP_LINE=$(read_ms "$d3/noop.json" 2>/dev/null) || NOOP_LINE=""
-NOOP=$(pick "$NOOP_LINE" 1); NOOP_SD=$(pick "$NOOP_LINE" 2); NOOP_OK=$(pick "$NOOP_LINE" 3)
-[[ "${NOOP_OK:-0}" == "1" ]] || { NOOP=""; NOOP_SD=""; }
-echo "run_noop: ${NOOP:-NA} s (±${NOOP_SD:-NA}) ok=${NOOP_OK:-0}"
+hf_stat "$d3/noop.json" "$STAT/noop" || true
+report run_noop "$STAT/noop"
 
 # ---------- Scenario 5: run build (real task) ----------
 d4=$(hf_json)
 hyperfine --runs "$HF_RUNS_BUILD" --warmup 1 \
   --ignore-failure --export-json "$d4/build.json" \
   "$RUN $RUN_BUILD_CMD" >/dev/null 2>&1 || true
-BUILD_LINE=$(read_ms "$d4/build.json" 2>/dev/null) || BUILD_LINE=""
-BUILD=$(pick "$BUILD_LINE" 1); BUILD_SD=$(pick "$BUILD_LINE" 2); BUILD_OK=$(pick "$BUILD_LINE" 3)
-# Guard against "instant fail" (pm exits 0 without running the task) — require
-# the build wall time to exceed the noop overhead by a little, or be > 200ms.
-if [[ "${BUILD_OK:-0}" == "1" && -n "$BUILD" && -n "$NOOP" ]]; then
+hf_stat "$d4/build.json" "$STAT/build" || true
+# Discard "build" that is basically the noop spawn (task did not really run).
+if [[ -f "$STAT/build" && -f "$STAT/noop" ]]; then
   node -e '
-    const build=+process.argv[1], noop=+process.argv[2];
-    const ok = build >= 0.2 && build >= noop * 1.15;
-    process.exit(ok ? 0 : 1);
-  ' "$BUILD" "$NOOP" || { BUILD=""; BUILD_SD=""; BUILD_OK=0; echo "run_build: discarded (too close to noop — task likely did not run)"; }
+    const fs = require("fs");
+    const b = fs.readFileSync(process.argv[1], "utf8").split(/\s+/);
+    const n = fs.readFileSync(process.argv[2], "utf8").split(/\s+/);
+    const build = +b[0], okB = +b[2], noop = +n[0];
+    const fake = okB === 1 && build > 0 && build < 0.2 && build < noop * 1.15;
+    if (fake) {
+      fs.writeFileSync(process.argv[1], `0 0 0`);
+      process.exit(0);
+    }
+  ' "$STAT/build" "$STAT/noop" || true
 fi
-[[ "${BUILD_OK:-0}" == "1" ]] || { BUILD=""; BUILD_SD=""; }
-echo "run_build: ${BUILD:-NA} s (±${BUILD_SD:-NA}) ok=${BUILD_OK:-0}"
+report run_build "$STAT/build"
 
 # ---------- write results ----------
-export PM PM_VERSION REQ_VER FIXTURE NODE_VERSION OUT_JSON
+export PM PM_VERSION REQ_VER FIXTURE NODE_VERSION OUT_JSON STAT
 export HF_RUNS_COLD HF_RUNS_WARM HF_RUNS_FROZEN HF_RUNS_NOOP HF_RUNS_BUILD
-export COLD COLD_SD WARM WARM_SD FROZEN FROZEN_SD NOOP NOOP_SD BUILD BUILD_SD
-export COLD_OK WARM_OK FROZEN_OK NOOP_OK BUILD_OK
-export SCHEMA_VERSION=4
+export SCHEMA_VERSION=5
 node -e '
-const fs=require("fs");
-const o={
-  schema: 4,
+const fs = require("fs");
+const path = require("path");
+const STAT = process.env.STAT;
+function load(key) {
+  try {
+    const [mean, sd, ok] = fs
+      .readFileSync(path.join(STAT, key), "utf8")
+      .trim()
+      .split(/\s+/);
+    const o = { mean: +mean, stddev: +sd || 0 };
+    return { value: +ok === 1 ? o : null, ok: +ok === 1 };
+  } catch {
+    return { value: null, ok: false };
+  }
+}
+const cold = load("cold");
+const warm = load("warm");
+const frozen = load("frozen");
+const noop = load("noop");
+const build = load("build");
+const o = {
+  schema: 5,
   fixture: process.env.FIXTURE,
   pm: process.env.PM,
   pm_version: process.env.PM_VERSION,
@@ -235,23 +269,22 @@ const o={
     build: +process.env.HF_RUNS_BUILD,
   },
   scenarios: {
-    install_cold:   num(process.env.COLD, process.env.COLD_SD),
-    install_warm:   num(process.env.WARM, process.env.WARM_SD),
-    install_frozen: num(process.env.FROZEN, process.env.FROZEN_SD),
-    run_noop:       num(process.env.NOOP, process.env.NOOP_SD),
-    run_build:      num(process.env.BUILD, process.env.BUILD_SD),
+    install_cold: cold.value,
+    install_warm: warm.value,
+    install_frozen: frozen.value,
+    run_noop: noop.value,
+    run_build: build.value,
   },
   ok: {
-    install_cold: process.env.COLD_OK === "1",
-    install_warm: process.env.WARM_OK === "1",
-    install_frozen: process.env.FROZEN_OK === "1",
-    run_noop: process.env.NOOP_OK === "1",
-    run_build: process.env.BUILD_OK === "1",
-  }
+    install_cold: cold.ok,
+    install_warm: warm.ok,
+    install_frozen: frozen.ok,
+    run_noop: noop.ok,
+    run_build: build.ok,
+  },
 };
-function num(m,s){ return (m===""||m==null)?null:{mean:+m, stddev:+(s||0)}; }
-fs.writeFileSync(process.env.OUT_JSON, JSON.stringify(o,null,2));
+fs.writeFileSync(process.env.OUT_JSON, JSON.stringify(o, null, 2));
 '
 echo "==> Wrote $OUT_JSON"
 
-rm -rf /tmp/hf.* 2>/dev/null || true
+rm -rf /tmp/hf.* /tmp/bstat.* 2>/dev/null || true
