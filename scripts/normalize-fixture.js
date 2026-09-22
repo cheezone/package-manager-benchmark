@@ -123,10 +123,10 @@ if (hasPkgs) {
   }
 }
 
-// pnpm 10+ blocks lifecycle scripts unless allow-listed
-pkg.pnpm = {
-  onlyBuiltDependencies: ["esbuild", "nodejieba", "vue-demi", "cypress", "simple-git-hooks"],
-};
+// Do NOT put native packages in pnpm.onlyBuiltDependencies — aube/pnpm will
+// then compile nodejieba/esbuild during install and blow the measurement.
+// npm/pnpm/bun installs already use --ignore-scripts.
+delete pkg.pnpm;
 
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 
