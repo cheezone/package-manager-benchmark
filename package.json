@@ -1,0 +1,27 @@
+{
+  "name": "pm-benchmark-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Monorepo fixture used to benchmark Node.js package managers (npm, pnpm, bun, nub, aube, yarn).",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "noop": "node scripts/noop.js"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "dayjs": "^1.11.13",
+    "debug": "^4.3.7",
+    "glob": "^11.0.0",
+    "lodash": "^4.17.21",
+    "picocolors": "^1.1.0",
+    "rimraf": "^6.0.1",
+    "semver": "^7.6.3",
+    "typescript": "^5.6.0",
+    "yaml": "^2.6.0"
+  }
+}

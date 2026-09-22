@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+.pnpm-store/
+.bun-cache/
+.yarn/
+.yarnrc.yml
+
+# lockfiles (each manager writes its own; not committed)
+package-lock.json
+pnpm-lock.yaml
+bun.lock
+bun.lockb
+yarn.lock
+nub.lock
+aube-lock.yaml
+
+# build output
+dist/
+
+# benchmark results (produced by CI)
+results/
+work/
