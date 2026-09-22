@@ -33,12 +33,12 @@ Four scenarios are timed per package manager, **each measured with
 
 ## How the benchmark stays fair
 
-- **Version sweep**: a `setup` job (`.github/scripts/matrix.mjs`) queries
-  the npm registry for each manager and picks the **last 3 minor-series
-  releases** (each represented by its latest patch). The benchmark then
-  runs as a matrix over **(pm × version)** — 18 combos today — so you can
-  see whether a new release actually got faster or just changed its
-  marketing.
+- **Version sweep**: `.github/scripts/matrix.mjs` queries the npm registry
+  for each manager and picks the **last 3 minor-series releases** (each
+  represented by its latest patch). The result is pasted into the workflow
+  as a static matrix of **(pm × version)** — 18 combos — so you can see
+  whether a new release actually got faster or just changed its marketing.
+  Re-run the script and paste a fresh list to update the sweep.
 - **Controllable caches**: each manager's cache lives in a known location
   that `bench.sh` wipes for the cold run and keeps for the warm run
   (e.g. pnpm `.pnpm-store`, bun `BUN_INSTALL_CACHE_DIR`, npm `~/.npm`,
@@ -68,11 +68,10 @@ You need [hyperfine](https://github.com/sharkdp/hyperfine) on your PATH
 
 ## Run it in CI
 
-Push to `main` (or use **Run workflow**). The `setup` job computes the
-version matrix, then a **(pm × version)** matrix benchmarks each combo on
-`ubuntu-latest`; finally the `aggregate` job combines every
-`results/<pm>-<version>.json` into a Markdown table (mean ± stddev,
-fastest cell bolded) posted to the job summary.
+Push to `main` (or use **Run workflow**). A **(pm × version)** matrix
+benchmarks each combo on `ubuntu-latest`; finally the `aggregate` job
+combines every `results/<pm>-<version>.json` into a Markdown table
+(mean ± stddev, fastest cell bolded) posted to the job summary.
 
 ## CI test environment
 
