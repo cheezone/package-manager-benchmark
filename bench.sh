@@ -98,13 +98,13 @@ case "$PM" in
     WARM_INSTALL="$(wrap install bun install --ignore-scripts)"
     FROZEN_INSTALL="$(wrap install bun install --frozen-lockfile --ignore-scripts)"
     RUN="bun run"
-    CACHE_WIPE="rm -rf \"$BUN_INSTALL_CACHE_DIR\""
+    # Must wipe BOTH the project cache AND the global install cache —
+    # otherwise "cold" install still hits ~/.bun/install and looks unfairly fast.
+    CACHE_WIPE="rm -rf \"$BUN_INSTALL_CACHE_DIR\" \"$HOME/.bun/install\"; bun pm cache rm -g >/dev/null 2>&1 || true"
     version_cmd="bun --version"
     ;;
   nub)
     # Same contract as npm/pnpm/bun/aube: resolve+link only, no lifecycle.
-    # Without this nub's defaultTrust runs esbuild/nodejieba/vue-demi scripts
-    # (C++ compile) and the install is unfairly charged for that work.
     INSTALL="$(wrap install nub install --ignore-scripts)"
     WARM_INSTALL="$(wrap install nub install --ignore-scripts)"
     FROZEN_INSTALL="$(wrap install nub ci --ignore-scripts)"
@@ -113,13 +113,11 @@ case "$PM" in
     version_cmd="nub --version"
     ;;
   aube)
-    # Skip lifecycle scripts (nodejieba node-gyp) so install measures
-    # resolve+link only. .npmrc ignore-scripts is also set in the fixture.
     INSTALL="$(wrap install aube install --ignore-scripts --no-frozen-lockfile)"
     WARM_INSTALL="$(wrap install aube install --ignore-scripts --no-frozen-lockfile)"
     FROZEN_INSTALL="$(wrap install aube ci --ignore-scripts)"
     RUN="aubr"
-    CACHE_WIPE="rm -rf \"$HOME/.aube\" \"$HOME/.local/share/aube\" \"$HOME/.cache/aube\" \"$WORK/.aube-store\""
+    CACHE_WIPE="rm -rf \"$HOME/.aube\" \"$HOME/.local/share/aube\" \"$HOME/.cache/aube\" \"$HOME/.aube-store\" \"$WORK/.aube-store\"; aube cache delete '*' >/dev/null 2>&1 || true"
     version_cmd="aube --version"
     ;;
   *)

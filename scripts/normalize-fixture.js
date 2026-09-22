@@ -52,6 +52,11 @@ fs.writeFileSync(
     "defaultTrust=false",
     "default-trust=false",
     "default-trust-builds=false",
+    // nub security extras that cost network time on fresh resolve — not under test
+    "minimumReleaseAge=0",
+    "minimum-release-age=0",
+    "osv=false",
+    "osv-audit=false",
     "",
   ].join("\n")
 );
