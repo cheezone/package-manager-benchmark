@@ -63,14 +63,14 @@ const scenLabels = {
 
 function norm(v) {
   if (v == null) return null;
-  if (typeof v === "number") return { mean: v, median: v, stddev: 0, min: v, max: v };
+  if (typeof v === "number") return { mean: v, median: v, stddev: 0, min: null, max: null };
   if (typeof v.mean === "number") {
     return {
       mean: v.mean,
       median: v.median != null ? v.median : v.mean,
       stddev: v.stddev || 0,
-      min: v.min != null ? v.min : v.mean,
-      max: v.max != null ? v.max : v.mean,
+      min: typeof v.min === "number" ? v.min : null,
+      max: typeof v.max === "number" ? v.max : null,
     };
   }
   return null;

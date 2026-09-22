@@ -218,43 +218,36 @@ body {
 }
 
 /* ── Table ────────────────────────────────────────── */
-/* ── Winner sticker ────────────────────────────────── */
+/* ── 冠军小贴纸：浮在主图最快数值右侧，不占布局 ───── */
 .chart-wrap {
   position: relative;
 }
-.win-sticker {
+.win-float {
   position: absolute;
-  top: -8px;
-  right: 4px;
-  width: 88px;
+  width: 48px;
   height: auto;
   pointer-events: none;
-  transform: rotate(8deg);
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.12));
-  z-index: 2;
+  z-index: 4;
+  transform: translate(0, -50%) rotate(8deg);
+  filter: brightness(1.15) saturate(1.12)
+    drop-shadow(0 2px 8px rgba(255, 103, 0, 0.35));
+  animation: win-bob 2s ease-in-out infinite;
 }
-table.data-table tr.is-winner td {
-  background: rgba(255, 103, 0, 0.06);
+.win-float[hidden] {
+  display: none !important;
 }
-table.data-table tr.is-winner td.ver {
-  position: relative;
-  font-weight: 600;
-  color: var(--accent-deep, #eb5600);
-}
-.row-sticker {
-  position: absolute;
-  right: -6px;
-  top: 50%;
-  width: 56px;
-  height: auto;
-  transform: translateY(-50%) rotate(6deg);
-  pointer-events: none;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.12));
-  z-index: 3;
+@keyframes win-bob {
+  0%,
+  100% {
+    transform: translate(0, -50%) rotate(8deg) scale(1);
+  }
+  50% {
+    transform: translate(0, calc(-50% - 3px)) rotate(4deg) scale(1.06);
+  }
 }
 .table-wrap {
   overflow-x: auto;
-  /* no max-height — let the full multi-version table grow with the page */
+  overflow-y: visible;
 }
 table.data-table {
   border-collapse: separate;

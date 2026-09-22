@@ -93,14 +93,16 @@
   }
   function norm(v) {
     if (v == null) return null;
-    if (typeof v === "number") return { mean: v, median: v, stddev: 0, min: v, max: v };
+    if (typeof v === "number")
+      return { mean: v, median: v, stddev: 0, min: null, max: null };
     if (typeof v.mean === "number") {
       return {
         mean: v.mean,
         median: v.median != null ? v.median : v.mean,
         stddev: v.stddev || 0,
-        min: v.min != null ? v.min : v.mean,
-        max: v.max != null ? v.max : v.mean,
+        // 仅在 hyperfine 真给了 min/max 时使用，不拿 mean 冒充区间
+        min: typeof v.min === "number" ? v.min : null,
+        max: typeof v.max === "number" ? v.max : null,
       };
     }
     return null;
@@ -120,15 +122,20 @@
     const n = norm(r.scenarios?.[s]);
     return n && n.stddev ? n.stddev * 1000 : 0;
   }
-  function rangeOf(r, s) {
-    const n = norm(r.scenarios?.[s]);
-    if (!n) return null;
-    return { min: n.min * 1000, max: n.max * 1000, mean: n.mean * 1000, median: n.median * 1000 };
-  }
   function fmtMs(m) {
     if (m == null) return "—";
     if (m >= 1000) return (m / 1000).toFixed(2) + " s";
     return m.toFixed(0) + " ms";
+  }
+  /** min–max 用同一单位，避免出现「200 ms – 2.20 s」 */
+  function fmtRange(a, b) {
+    if (a == null || b == null) return null;
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    if (hi >= 1000) {
+      return `${(lo / 1000).toFixed(2)} – ${(hi / 1000).toFixed(2)} s`;
+    }
+    return `${lo.toFixed(0)} – ${hi.toFixed(0)} ms`;
   }
   function cmpVer(a, b) {
     return String(a).localeCompare(String(b), undefined, { numeric: true });
@@ -159,8 +166,8 @@
           label: labelOf(r.pm, r.pm_version),
           mean: msOf(r, state.scenario),
           sd: sdOf(r, state.scenario),
-          minMs: n ? n.min * 1000 : null,
-          maxMs: n ? n.max * 1000 : null,
+          minMs: n && n.min != null ? n.min * 1000 : null,
+          maxMs: n && n.max != null ? n.max * 1000 : null,
           ok: isOk(r, state.scenario),
         };
       })
@@ -286,9 +293,10 @@
               `<b>${d.pm}</b> ${d.version}`,
               `中位数 ${fmtMs(d.mean)}`,
             ];
-            if (d.sd) lines.push(`均值± ${fmtMs(d.sd)}`);
-            if (d.minMs != null && d.maxMs != null)
-              lines.push(`区间 ${fmtMs(d.minMs)} – ${fmtMs(d.maxMs)}`);
+            if (d.sd) lines.push(`标准差 ${fmtMs(d.sd)}`);
+            const rg = fmtRange(d.minMs, d.maxMs);
+            // 无真实 min/max，或区间退化成一点时不显示
+            if (rg && d.maxMs - d.minMs > 0.5) lines.push(`区间 ${rg}`);
             return lines.join("<br/>");
           },
         },
@@ -342,6 +350,33 @@
       true
     );
     chart.resize();
+    placeWinFloat(view, values);
+  }
+
+  /** 浮贴纸贴在最快一根柱的数值右侧（不占图表布局） */
+  function placeWinFloat(view, values) {
+    const tip = document.getElementById("win-float");
+    if (!tip || !chart) return;
+    if (!view.length) {
+      tip.hidden = true;
+      return;
+    }
+    // view 已 reverse：最后一项 = 最快（图上最上）
+    const i = view.length - 1;
+    let px = null;
+    try {
+      px = chart.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [values[i], i]);
+    } catch {
+      px = null;
+    }
+    if (!px || !isFinite(px[0]) || !isFinite(px[1])) {
+      tip.hidden = true;
+      return;
+    }
+    // 柱端 + 数值文字（约 44px）再留一点缝
+    tip.hidden = false;
+    tip.style.left = Math.round(px[0] + 48) + "px";
+    tip.style.top = Math.round(px[1]) + "px";
   }
 
   function renderTable() {
@@ -404,13 +439,10 @@
               return `<td class="${cls}">${fmtMs(m)}</td>`;
             }).join("");
             const impl = implOf(r.pm, r.pm_version);
-            const sticker = isWin
-              ? `<img class="row-sticker" src="assets/leijun-heart-sticker.png" alt="最优" />`
-              : "";
             return `<tr class="${isLatest ? "is-latest" : "is-old"}${
               isWin ? " is-winner" : ""
             }" data-id="${rid}">
-              <td class="ver">${r.pm_version}${sticker}</td>
+              <td class="ver">${r.pm_version}</td>
               <td class="impl">${impl ? implIconHtml(impl) : ""}</td>
               ${tds}
             </tr>`;
@@ -425,9 +457,7 @@
       })
       .join("");
 
-    // 主图右上角贴纸（最快那根柱在顶部）
-    const stickerEl = document.getElementById("win-sticker");
-    if (stickerEl) stickerEl.hidden = !winnerId;
+    // 冠军浮贴纸由 placeWinFloat 贴在主图最快数值旁
 
     document.getElementById("table-wrap").innerHTML = `<table class="data-table${
       state.allVersions ? " is-multi" : ""
@@ -456,7 +486,15 @@
     renderFoot();
   }
 
-  window.addEventListener("resize", () => chart && chart.resize());
+  window.addEventListener("resize", () => {
+    if (!chart) return;
+    chart.resize();
+    // 重算浮贴纸位置
+    const data = chartRows();
+    const view = data.slice().reverse();
+    const values = view.map((d) => +d.mean.toFixed(1));
+    placeWinFloat(view, values);
+  });
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", render);
   } else {
