@@ -1,46 +1,58 @@
+<!-- AI生成 -->
 <!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>包管理器性能对比</title>
+  <link rel="stylesheet" href="https://cdn.cnbj1.fds.api.mi-img.com/aife/mimo-blog-fe/doc_build/fonts/font-faces.b3ff14bbe16d.css" />
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
 </head>
 <body>
+<p data-aigc-mark="1" style="margin:0 0 8px;font-size:10px;line-height:1.3;color:#6b6560;font-weight:400;">AI生成</p>
+
   <div class="wrap">
-    <header>
-      <h1>包管理器性能对比</h1>
-      <p class="sub">真实仓库夹具 · hyperfine 均值 ± 标准差 · 越低越好</p>
+    <header class="hero">
+      <p class="eyebrow">Package Manager Benchmark</p>
+      <h1>谁装得更快</h1>
+      <p class="sub">真实仓库夹具 · hyperfine 多次采样 · 越低越好</p>
     </header>
 
     <div class="bar">
-      <label>仓库</label>
       <div class="seg" id="fixture-seg"></div>
-      <label>场景</label>
       <div class="seg" id="scenario-seg"></div>
+      <label class="switch">
+        <input type="checkbox" id="all-versions" />
+        <span class="switch-ui" aria-hidden="true"></span>
+        <span>显示多版本</span>
+      </label>
     </div>
 
-    <div class="card">
+    <section class="card">
       <div class="card-head">
-        <h2 id="chart-title">—</h2>
+        <div class="card-title">
+          <span class="idx">01</span>
+          <h2 id="chart-title">—</h2>
+        </div>
         <span class="meta" id="chart-meta"></span>
       </div>
+      <div class="legend" id="pm-legend"></div>
       <div id="chart" class="chart"></div>
-    </div>
+    </section>
 
-    <div class="card">
+    <section class="card">
       <div class="card-head">
-        <h2>数据表</h2>
-        <label class="switch">
-          <input type="checkbox" id="all-versions" />
-          <span>显示多版本</span>
-        </label>
+        <div class="card-title">
+          <span class="idx">02</span>
+          <h2>完整数据</h2>
+        </div>
+        <span class="meta">均值 · 标准差见悬停</span>
       </div>
       <div class="table-wrap" id="table-wrap"></div>
-    </div>
+    </section>
 
-    <p class="foot" id="foot"></p>
+    <footer class="foot" id="foot"></footer>
   </div>
   <script src="data.js"></script>
   <script src="app.js"></script>

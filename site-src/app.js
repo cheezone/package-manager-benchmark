@@ -37,6 +37,11 @@
     nub: "assets/icons/nub.svg",
     aube: "assets/icons/aube.svg",
   };
+  const IMPL_ICON = {
+    rust: "assets/icons/rust-color.svg",
+    node: "assets/icons/node-color.svg",
+    zig: "assets/icons/zig-color.svg",
+  };
   const FX_ORDER =
     meta.fixtures && meta.fixtures.length
       ? meta.fixtures
@@ -66,13 +71,22 @@
   }
   function labelOf(pm, version) {
     const impl = implOf(pm, version);
-    return impl ? `${pm}(${impl})` : pm;
+    return impl ? `${pm} · ${impl}` : pm;
   }
   function iconHtml(pm) {
     const src = PM_ICON[pm];
+    return src ? `<span class="pm-icon"><img src="${src}" alt="" /></span>` : "";
+  }
+  function implIconHtml(impl) {
+    const src = IMPL_ICON[impl];
     return src
-      ? `<span class="pm-icon"><img src="${src}" alt="" /></span>`
+      ? `<span class="pm-icon impl-icon" title="${impl}"><img src="${src}" alt="${impl}" /></span>`
       : "";
+  }
+  /** 表格/图例：管理器图标 + 名称 + 语言图标（不再显示 (rust) 文字） */
+  function nameHtml(pm, version) {
+    const impl = implOf(pm, version);
+    return iconHtml(pm) + pm + (impl ? implIconHtml(impl) : "");
   }
   function color(pm) {
     return PM_COLOR[pm] || "#26251e";
@@ -130,7 +144,6 @@
         mean: msOf(r, state.scenario),
         sd: sdOf(r, state.scenario),
         ok: isOk(r, state.scenario),
-        pkgs: r.package_count || 0,
       }))
       .filter((d) => d.mean != null && d.ok)
       .sort((a, b) => a.mean - b.mean);
@@ -180,9 +193,7 @@
     for (const d of data) {
       if (seen.has(d.pm)) continue;
       seen.add(d.pm);
-      items.push(
-        `<span class="legend-item">${iconHtml(d.pm)}${d.pm}</span>`
-      );
+      items.push(`<span class="legend-item">${iconHtml(d.pm)}${d.pm}</span>`);
     }
     document.getElementById("pm-legend").innerHTML = items.join("");
   }
@@ -199,9 +210,30 @@
     if (!chart) chart = echarts.init(el, null, { renderer: "canvas" });
 
     const view = data.slice().reverse();
-    const names = view.map((d) =>
-      state.allVersions ? `${d.label} ${d.version}` : d.label
-    );
+    // y 轴：用 rich 图标代替 (rust)/(zig) 文字
+    const rich = {};
+    const names = view.map((d, i) => {
+      const impl = implOf(d.pm, d.version);
+      rich["pm" + i] = {
+        width: 18,
+        height: 18,
+        backgroundColor: { image: PM_ICON[d.pm] || "" },
+        borderRadius: 3,
+      };
+      if (impl && IMPL_ICON[impl]) {
+        rich["im" + i] = {
+          width: 14,
+          height: 14,
+          backgroundColor: { image: IMPL_ICON[impl] },
+        };
+        return state.allVersions
+          ? `{pm${i}|} ${d.pm} {im${i}|} ${d.version}`
+          : `{pm${i}|} ${d.pm} {im${i}|}`;
+      }
+      return state.allVersions
+        ? `{pm${i}|} ${d.pm} ${d.version}`
+        : `{pm${i}|} ${d.pm}`;
+    });
     const values = view.map((d) => +d.mean.toFixed(1));
     const colors = view.map((d) => color(d.pm));
 
@@ -217,7 +249,7 @@
           formatter: (p) => {
             const d = view[p.dataIndex];
             if (!d) return "";
-            return `<b>${d.label}</b> ${d.version}<br/>${fmtMs(d.mean)}${
+            return `<b>${d.pm}</b> ${d.version}<br/>${fmtMs(d.mean)}${
               d.sd ? ` ± ${fmtMs(d.sd)}` : ""
             }`;
           },
@@ -236,7 +268,13 @@
         yAxis: {
           type: "category",
           data: names,
-          axisLabel: { color: "#26251e", fontSize: 13 },
+          axisLabel: {
+            color: "#26251e",
+            fontSize: 13,
+            rich,
+            // 数据里已是 {pm0|} 富文本
+            formatter: (v) => v,
+          },
           axisLine: { show: false },
           axisTick: { show: false },
         },
@@ -253,13 +291,7 @@
             label: {
               show: true,
               position: "right",
-              formatter: (p) => {
-                const d = view[p.dataIndex];
-                if (!d) return "";
-                const per =
-                  d.pkgs > 0 ? ` · ${(d.mean / d.pkgs).toFixed(1)}ms/包` : "";
-                return fmtMs(d.mean) + per;
-              },
+              formatter: (p) => fmtMs(view[p.dataIndex]?.mean),
               color: "#504f49",
               fontSize: 12,
             },
@@ -297,27 +329,23 @@
       return cmpVer(b.pm_version, a.pm_version);
     });
 
-    const head = ["管理器", "版本", "包数", ...SCEN.map((s) => SCEN_CN[s] || s)];
+    const head = ["管理器", "版本", ...SCEN.map((s) => SCEN_CN[s] || s)];
     const body = show
       .map((r) => {
         const key = r.pm + "|" + (implOf(r.pm, r.pm_version) || "");
         const isLatest = latest.get(key) === r;
-        const n = r.package_count || 0;
         const tds = SCEN.map((s) => {
           if (!isOk(r, s)) return `<td class="num fail">失败</td>`;
           const m = msOf(r, s);
           if (m == null) return `<td class="num">—</td>`;
           const cls = best[s] === m ? "num best" : "num";
-          const isInstall = s.startsWith("install_");
-          const per = n > 0 && isInstall ? ` (${(m / n).toFixed(1)}/包)` : "";
-          return `<td class="${cls}">${fmtMs(m)}${per}</td>`;
+          return `<td class="${cls}">${fmtMs(m)}</td>`;
         }).join("");
         const tag =
           state.allVersions && !isLatest ? ` <span class="pill">旧</span>` : "";
         return `<tr>
-          <td><span class="pm-cell">${iconHtml(r.pm)}${labelOf(r.pm, r.pm_version)}</span></td>
+          <td><span class="pm-cell">${nameHtml(r.pm, r.pm_version)}</span></td>
           <td class="ver">${r.pm_version}${tag}</td>
-          <td class="num">${r.package_count ?? "—"}</td>
           ${tds}
         </tr>`;
       })
