@@ -1,42 +1,54 @@
 {
-  "schema": 7,
+  "schema": 8,
   "fixture": "vitesse",
   "pm": "nub",
   "pm_version": "0.9.3",
   "impl": "node",
   "requested_version": "0.9.3",
-  "node_version": "v24.21.0",
-  "recorded_at": "2026-09-22T11:03:46.847Z",
+  "node_version": "v24.20.0",
+  "recorded_at": "2026-09-22T14:16:16.759Z",
   "platform": "linux-x64",
   "package_count": 1177,
   "hyperfine_runs": {
-    "cold": 2,
-    "warm": 3,
-    "frozen": 3,
-    "noop": 5
+    "cold": 10,
+    "warm": 10,
+    "frozen": 10,
+    "noop": 10
   },
   "scenarios": {
     "install_cold": {
-      "mean": 26.550029,
-      "stddev": 6.746805
+      "mean": 61.21990018064,
+      "stddev": 39.01650239532971,
+      "median": 51.18576887284,
+      "min": 22.387342853339998,
+      "max": 149.72214666734
     },
     "install_warm": {
-      "mean": 1.427634,
-      "stddev": 0.504559
+      "mean": 0.7528690501,
+      "stddev": 0.06594383651583972,
+      "median": 0.7325769267000001,
+      "min": 0.7214616977,
+      "max": 0.9399507777
     },
     "install_frozen": {
-      "mean": 1.055149,
-      "stddev": 0.065037
+      "mean": 0.72128051618,
+      "stddev": 0.008697140176768627,
+      "median": 0.72261370668,
+      "min": 0.70659512668,
+      "max": 0.73230771668
     },
     "run_noop": {
-      "mean": 0.056653,
-      "stddev": 0.00408
+      "mean": 0.06410238144,
+      "stddev": 0.0024886285763492965,
+      "median": 0.06298511284,
+      "min": 0.06159164734000001,
+      "max": 0.06864582234000001
     }
   },
   "per_pkg_ms": {
-    "install_cold": 22.56,
-    "install_warm": 1.21,
-    "install_frozen": 0.9
+    "install_cold": 43.49,
+    "install_warm": 0.62,
+    "install_frozen": 0.61
   },
   "ok": {
     "install_cold": true,
