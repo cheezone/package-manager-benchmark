@@ -480,7 +480,20 @@
     </table>`;
   }
 
-  /** 点击贴纸：放大再弹回 */
+  /** 点击贴纸：放大再弹回 + 「牛哇牛哇」配音 */
+  const NIUNIU_SRC = window.NIUNIU_SRC || "assets/niuniu.mp3";
+  let niuniuAudio = null;
+  function playNiuniu() {
+    try {
+      if (!niuniuAudio) {
+        niuniuAudio = new Audio(NIUNIU_SRC);
+        niuniuAudio.preload = "auto";
+      }
+      niuniuAudio.currentTime = 0;
+      const p = niuniuAudio.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch (_) {}
+  }
   function bindWinPop() {
     const tip = document.getElementById("win-float");
     if (!tip || tip.dataset.bound) return;
@@ -489,6 +502,7 @@
       tip.classList.remove("is-pop");
       void tip.offsetWidth;
       tip.classList.add("is-pop");
+      playNiuniu();
     };
     tip.addEventListener("click", pop);
     tip.addEventListener("animationend", (e) => {
@@ -500,8 +514,7 @@
     const t = (meta.generated_at || "").replace("T", " ").slice(0, 19);
     document.getElementById("foot").innerHTML =
       `${t ? t + " UTC · " : ""}Node LTS · ${rows.length} 条 · ` +
-      `<a href="https://github.com/cheezone/package-manager-benchmark">源码</a>` +
-      ` · 结果缓存于 data/bench，可按需重测`;
+      `<a href="https://github.com/cheezone/package-manager-benchmark">源码</a>`;
   }
 
   function render() {
