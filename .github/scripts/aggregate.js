@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { readStore, writeStoreRow } from "../../scripts/result-store.js";
 
-// Read all result JSONs from a directory (default: all-results) and emit a
-// Markdown table plus a machine-readable aggregate.json for the static site.
+// Merge incoming results with the committed store (data/bench/), persist
+// incoming rows, then emit Markdown + aggregate.json for the static site.
 const dir = process.argv[2] || "all-results";
 fs.mkdirSync(dir, { recursive: true });
 
@@ -10,7 +11,7 @@ const files = fs
   .readdirSync(dir)
   .filter((f) => f.endsWith(".json") && f !== "aggregate.json");
 
-const rows = files
+const incoming = files
   .map((f) => {
     try {
       return JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
@@ -22,9 +23,19 @@ const rows = files
   .filter((r) => r && r.pm && r.scenarios)
   .map((r) => ({
     ...r,
-    fixture: r.fixture || "synthetic",
+    fixture: r.fixture || "handle",
     pm_version: cleanVer(r.pm_version),
   }));
+
+for (const r of incoming) {
+  try { writeStoreRow(r); } catch { /* ignore */ }
+}
+
+const byKey = new Map();
+const keyOf = (r) => `${r.fixture}|${r.pm}|${cleanVer(r.pm_version)}|${r.requested_version || ""}`;
+for (const r of readStore()) byKey.set(keyOf(r), r);
+for (const r of incoming) byKey.set(keyOf(r), r);
+const rows = [...byKey.values()].filter((r) => r.pm && r.scenarios);
 
 const order = ["npm", "pnpm", "bun", "nub", "aube"];
 

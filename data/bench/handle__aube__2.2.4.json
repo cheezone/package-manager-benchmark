@@ -1,0 +1,47 @@
+{
+  "schema": 7,
+  "fixture": "handle",
+  "pm": "aube",
+  "pm_version": "2.2.4",
+  "impl": "node",
+  "requested_version": "2.2.4",
+  "node_version": "v24.20.0",
+  "recorded_at": "2026-09-22T11:02:28.173Z",
+  "platform": "linux-x64",
+  "package_count": 696,
+  "hyperfine_runs": {
+    "cold": 2,
+    "warm": 3,
+    "frozen": 3,
+    "noop": 5
+  },
+  "scenarios": {
+    "install_cold": {
+      "mean": 9.429894,
+      "stddev": 7.226046
+    },
+    "install_warm": {
+      "mean": 2.089463,
+      "stddev": 0.046649
+    },
+    "install_frozen": {
+      "mean": 0.238153,
+      "stddev": 0.030268
+    },
+    "run_noop": {
+      "mean": 0.031063,
+      "stddev": 0.009569
+    }
+  },
+  "per_pkg_ms": {
+    "install_cold": 13.55,
+    "install_warm": 3,
+    "install_frozen": 0.34
+  },
+  "ok": {
+    "install_cold": true,
+    "install_warm": true,
+    "install_frozen": true,
+    "run_noop": true
+  }
+}

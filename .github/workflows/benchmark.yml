@@ -3,7 +3,31 @@ name: Package Manager Benchmark
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+    paths:
+      - "bench.sh"
+      - "scripts/**"
+      - "fixtures/**"
+      - "site-src/**"
+      - ".github/scripts/**"
+      - ".github/workflows/benchmark.yml"
+  workflow_dispatch:
+    inputs:
+      fixture:
+        description: "夹具过滤（空=全部）"
+        required: false
+        default: ""
+      pm:
+        description: "PM 过滤（空=全部）"
+        required: false
+        default: ""
+      version:
+        description: "版本过滤（空=全部）"
+        required: false
+        default: ""
+      force:
+        description: "强制重测（忽略已有结果）"
+        type: boolean
+        default: false
   schedule:
     - cron: "17 3 * * 1"
 
@@ -17,13 +41,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Resolve (pm × version × fixture) from the npm registry. Version lists are
-  # cached (.cache/pm-bench) so re-runs don't re-query every PM.
   matrix:
-    name: Resolve matrix
+    name: Plan matrix
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.build.outputs.matrix }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      selected: ${{ steps.plan.outputs.selected }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,28 +58,32 @@ jobs:
           key: pm-bench-versions-${{ github.run_id }}
           restore-keys: |
             pm-bench-versions-
-      - id: build
+      - id: plan
+        env:
+          ONLY_FIXTURES: ${{ inputs.fixture || '' }}
+          ONLY_PMS: ${{ inputs.pm || '' }}
+          ONLY_VERSIONS: ${{ inputs.version || '' }}
+          FORCE: ${{ (inputs.force && '1') || '0' }}
         run: |
-          node .github/scripts/matrix.mjs > /tmp/matrix.json
-          echo "matrix=$(cat /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
-          echo "Resolved matrix:"
-          node -e 'const m=require("/tmp/matrix.json"); console.log("combos:", m.include.length); for (const r of m.include) console.log(" ", r.fixture, r.pm, r.version, r.impl)'
+          node .github/scripts/plan-matrix.js > /tmp/plan.json 2>/tmp/plan.log
+          cat /tmp/plan.log
+          echo "matrix=$(cat /tmp/plan.json)" >> "$GITHUB_OUTPUT"
+          echo "selected=$(node -e 'let s="";const fs=require("fs");s=fs.readFileSync("/tmp/plan.json","utf8");const m=JSON.parse(s);console.log(m.include.length)')" >> "$GITHUB_OUTPUT"
 
   benchmark:
     name: ${{ matrix.fixture }} · ${{ matrix.pm }}@${{ matrix.version }} (${{ matrix.impl }})
     needs: matrix
+    if: needs.matrix.outputs.selected != '0'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Node (current LTS)
         uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
-
       - name: Install hyperfine (timing tool)
         run: |
           set -euo pipefail
@@ -65,22 +92,17 @@ jobs:
           HF_DIR="/tmp/hyperfine-v1.20.0-x86_64-unknown-linux-gnu"
           echo "$HF_DIR" >> "$GITHUB_PATH"
           "$HF_DIR/hyperfine" --version
-
       - name: Install package manager (${{ matrix.pm }}@${{ matrix.version }})
         run: bash .github/scripts/install-pm.sh ${{ matrix.pm }} ${{ matrix.version }}
-
       - name: Print versions
         run: bash .github/scripts/versions.sh ${{ matrix.pm }}
-
       - name: Probe aube CLI
         if: matrix.pm == 'aube'
         run: |
           mkdir -p logs
           bash scripts/probe-aube.sh | tee logs/aube-help.txt
-
       - name: Run benchmark
         run: bash bench.sh ${{ matrix.pm }} ${{ matrix.version }} ${{ matrix.fixture }}
-
       - name: Upload install logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -88,7 +110,6 @@ jobs:
           name: logs-${{ matrix.fixture }}-${{ matrix.pm }}-${{ matrix.version }}
           path: logs/
           if-no-files-found: warn
-
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,41 +119,50 @@ jobs:
           if-no-files-found: warn
 
   aggregate:
-    name: Aggregate results
-    needs: benchmark
+    name: Aggregate + persist store
+    needs: [matrix, benchmark]
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && needs.matrix.result == 'success'
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
       - uses: actions/download-artifact@v4
+        if: needs.matrix.outputs.selected != '0'
         with:
           pattern: results-*
           path: all-results
           merge-multiple: true
-      - name: Build comparison table
-        run: node .github/scripts/aggregate.js all-results
+      - name: Merge store + build table
+        run: |
+          mkdir -p all-results
+          node .github/scripts/aggregate.js all-results
       - name: Build static site
         run: node .github/scripts/build-site.js results/aggregate.json site
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
-      - name: Upload results bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: aggregate-bundle
-          path: |
-            results/aggregate.json
-            results/LAST_RESULTS.md
-            site/
+      - name: Commit result store
+        run: |
+          if [ -n "$(git status --porcelain data/bench)" ]; then
+            git config user.name "pm-bench-bot"
+            git config user.email "pm-bench-bot@users.noreply.github.com"
+            git add data/bench
+            git commit -m "data: update bench result store [skip ci]"
+            git push
+          else
+            echo "result store unchanged"
+          fi
 
   deploy:
     name: Deploy GitHub Pages
     needs: aggregate
-    # always deploy when aggregate produced a site, even if some matrix cells failed
     if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

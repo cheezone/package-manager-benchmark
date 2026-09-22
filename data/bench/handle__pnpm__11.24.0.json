@@ -1,0 +1,47 @@
+{
+  "schema": 7,
+  "fixture": "handle",
+  "pm": "pnpm",
+  "pm_version": "11.24.0",
+  "impl": "node",
+  "requested_version": "11.24.0",
+  "node_version": "v24.20.0",
+  "recorded_at": "2026-09-22T11:02:08.788Z",
+  "platform": "linux-x64",
+  "package_count": 697,
+  "hyperfine_runs": {
+    "cold": 2,
+    "warm": 3,
+    "frozen": 3,
+    "noop": 5
+  },
+  "scenarios": {
+    "install_cold": {
+      "mean": 7.974712,
+      "stddev": 2.814833
+    },
+    "install_warm": {
+      "mean": 1.813088,
+      "stddev": 0.019207
+    },
+    "install_frozen": {
+      "mean": 1.80176,
+      "stddev": 0.015403
+    },
+    "run_noop": {
+      "mean": 0.489673,
+      "stddev": 0.002861
+    }
+  },
+  "per_pkg_ms": {
+    "install_cold": 11.44,
+    "install_warm": 2.6,
+    "install_frozen": 2.59
+  },
+  "ok": {
+    "install_cold": true,
+    "install_warm": true,
+    "install_frozen": true,
+    "run_noop": true
+  }
+}

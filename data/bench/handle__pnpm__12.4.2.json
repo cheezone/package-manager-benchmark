@@ -1,0 +1,47 @@
+{
+  "schema": 7,
+  "fixture": "handle",
+  "pm": "pnpm",
+  "pm_version": "12.4.2",
+  "impl": "rust",
+  "requested_version": "12.4.2",
+  "node_version": "v24.20.0",
+  "recorded_at": "2026-09-22T11:01:32.393Z",
+  "platform": "linux-x64",
+  "package_count": 697,
+  "hyperfine_runs": {
+    "cold": 2,
+    "warm": 3,
+    "frozen": 3,
+    "noop": 5
+  },
+  "scenarios": {
+    "install_cold": {
+      "mean": 2.815007,
+      "stddev": 1.158312
+    },
+    "install_warm": {
+      "mean": 0.389334,
+      "stddev": 0.045954
+    },
+    "install_frozen": {
+      "mean": 0.356709,
+      "stddev": 0.003524
+    },
+    "run_noop": {
+      "mean": 0.041825,
+      "stddev": 0.001126
+    }
+  },
+  "per_pkg_ms": {
+    "install_cold": 4.04,
+    "install_warm": 0.56,
+    "install_frozen": 0.51
+  },
+  "ok": {
+    "install_cold": true,
+    "install_warm": true,
+    "install_frozen": true,
+    "run_noop": true
+  }
+}
