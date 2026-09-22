@@ -38,6 +38,13 @@ for (const junk of [
   "aube.lock",
 ]) rmrf(path.join(root, junk));
 
+// aube trustPolicy=no-downgrade rejects old fixtures (handle → rollup@3)
+// that later majors have trusted publisher for. Not under test here.
+fs.writeFileSync(
+  path.join(root, ".npmrc"),
+  "trust-policy=off\ntrustPolicy=off\n"
+);
+
 // wipe nested node_modules
 (function wipe(dir) {
   const nm = path.join(dir, "node_modules");
