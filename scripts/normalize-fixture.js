@@ -42,7 +42,13 @@ for (const junk of [
 // that later majors have trusted publisher for. Not under test here.
 fs.writeFileSync(
   path.join(root, ".npmrc"),
-  "trust-policy=off\ntrustPolicy=off\n"
+  [
+    "trust-policy=off",
+    "trustPolicy=off",
+    // aube still runs some lifecycle scripts (nodejieba node-gyp) without this
+    "ignore-scripts=true",
+    "",
+  ].join("\n")
 );
 
 // wipe nested node_modules
