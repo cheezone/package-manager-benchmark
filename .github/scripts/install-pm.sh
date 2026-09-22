@@ -19,7 +19,7 @@ case "$PM" in
     ;;
   yarn)
     corepack enable
-    corepack prepare yarn@stable --activate
+    corepack prepare yarn@latest --activate
     ;;
   bun)
     curl -fsSL https://bun.sh/install | bash

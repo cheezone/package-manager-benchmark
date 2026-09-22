@@ -63,16 +63,18 @@ case "$PM" in
     version_cmd="aube --version"
     ;;
   yarn)
-    # Use the same registry the other managers resolve from, so the
-    # comparison is apples-to-apples regardless of the environment's mirror.
-    REG="$(npm config get registry 2>/dev/null || echo https://registry.npmjs.org)"
-    cat > .yarnrc.yml <<YML
+    # Mirror vltpkg/benchmarks' proven berry setup: explicit corepack version
+    # (no reliance on a packageManager field in package.json), immutable
+    # installs disabled, no mirror, node-modules linker. This is the config
+    # that reliably works on CI Linux runners.
+    cat > .yarnrc.yml <<'YML'
+enableImmutableInstalls: false
+enableMirror: false
 nodeLinker: node-modules
-npmRegistryServer: "$REG"
 YML
-    INSTALL="yarn install"
-    CI_INSTALL="yarn install"
-    RUN="yarn"
+    INSTALL="corepack yarn@latest install"
+    CI_INSTALL="corepack yarn@latest install"
+    RUN="corepack yarn@latest run"
     cache_wipe() { rm -rf "$HOME/.yarn"; }
     version_cmd="yarn --version"
     ;;
