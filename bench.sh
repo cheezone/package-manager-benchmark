@@ -132,7 +132,7 @@ COLD_PREPARE="$CACHE_WIPE; $NM_WIPE; rm -f $LOCKFILES"
 
 # aube --version prints "2.2.4 linux-x64 (2026-08-31)" — keep only the semver
 _raw_ver="$($version_cmd 2>/dev/null || true)"
-PM_VERSION="$(_raw_ver=printf '%s\n' "$_raw_ver"; printf '%s\n' "$_raw_ver" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?' | head -n1)"
+PM_VERSION="$(printf '%s\n' "$_raw_ver" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?' | head -n1)"
 PM_VERSION="${PM_VERSION:-unknown}"
 NODE_VERSION="$(node --version)"
 # node vs rust lineage (pnpm 12+ / bun are rust)
