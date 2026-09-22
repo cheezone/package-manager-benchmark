@@ -111,12 +111,11 @@ case "$PM" in
     version_cmd="nub --version"
     ;;
   aube)
-    # aube rejects --ignore-scripts; vlt uses plain `aube install`.
-    # `aube ci` is clean install + frozen lockfile (like npm ci).
-    # trust-policy off lives in fixture .npmrc (normalize-fixture).
-    INSTALL="$(wrap install aube install --no-frozen-lockfile)"
-    WARM_INSTALL="$(wrap install aube install --no-frozen-lockfile)"
-    FROZEN_INSTALL="$(wrap install aube ci)"
+    # Skip lifecycle scripts (nodejieba node-gyp) so install measures
+    # resolve+link only. .npmrc ignore-scripts is also set in the fixture.
+    INSTALL="$(wrap install aube install --ignore-scripts --no-frozen-lockfile)"
+    WARM_INSTALL="$(wrap install aube install --ignore-scripts --no-frozen-lockfile)"
+    FROZEN_INSTALL="$(wrap install aube ci --ignore-scripts)"
     RUN="aubr"
     CACHE_WIPE="rm -rf \"$HOME/.aube\" \"$HOME/.local/share/aube\" \"$HOME/.cache/aube\" \"$WORK/.aube-store\""
     version_cmd="aube --version"
