@@ -75,7 +75,9 @@ jobs:
 
       - name: Probe aube CLI
         if: matrix.pm == 'aube'
-        run: bash scripts/probe-aube.sh | tee logs/aube-help.txt
+        run: |
+          mkdir -p logs
+          bash scripts/probe-aube.sh | tee logs/aube-help.txt
 
       - name: Run benchmark
         run: bash bench.sh ${{ matrix.pm }} ${{ matrix.version }} ${{ matrix.fixture }}
@@ -131,7 +133,8 @@ jobs:
   deploy:
     name: Deploy GitHub Pages
     needs: aggregate
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # always deploy when aggregate produced a site, even if some matrix cells failed
+    if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pages: write

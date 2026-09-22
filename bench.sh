@@ -111,11 +111,11 @@ case "$PM" in
     version_cmd="nub --version"
     ;;
   aube)
-    # aube rejects --ignore-scripts; vlt-benchmarks uses plain `aube install`.
-    # CLI also ships `aubr` as the run entry.
+    # aube rejects --ignore-scripts; vlt uses plain `aube install`.
+    # `aube ci` is clean install + frozen lockfile (like npm ci).
     INSTALL="$(wrap install aube install)"
     WARM_INSTALL="$(wrap install aube install)"
-    FROZEN_INSTALL="$(wrap install aube install)"
+    FROZEN_INSTALL="$(wrap install aube ci)"
     RUN="aubr"
     CACHE_WIPE="rm -rf \"$HOME/.aube\" \"$HOME/.local/share/aube\" \"$HOME/.cache/aube\" \"$WORK/.aube-store\""
     version_cmd="aube --version"
