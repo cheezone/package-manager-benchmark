@@ -25,7 +25,6 @@ case "$PM" in
     ;;
   bun)
     if [[ -n "$VER" ]]; then
-      # Pinned version: download the exact release binary.
       curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${VER}/bun-linux-x64.zip" -o /tmp/bun.zip
       rm -rf /tmp/bun-extract && mkdir -p /tmp/bun-extract
       ( cd /tmp/bun-extract && unzip -o /tmp/bun.zip >/dev/null 2>&1 )
@@ -43,5 +42,4 @@ case "$PM" in
     ;;
 esac
 
-# Make sure the npm global bin dir is on PATH for this and later steps.
 echo "$(npm prefix -g)/bin" >> "$GITHUB_PATH"
