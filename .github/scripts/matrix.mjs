@@ -1,10 +1,17 @@
 #!/usr/bin/env node
-// Build the CI benchmark matrix: for each package manager, pick the last 2
-// minor-series (major.minor) releases, each represented by its latest patch,
-// crossed with every real-world fixture. Prereleases are skipped.
+// Build the CI matrix from the npm registry — no hardcoded version lists.
 //
-// Output (to stdout) is a JSON array of:
-//   { pm, pkg, version, fixture }
+// Rules:
+//   - npm / nub / aube: last 5 minor-series (major.minor), latest patch each
+//   - bun: last 5 minor-series (single native impl; no node/rust split)
+//   - pnpm: 5 Node-impl (major < 12) + 5 Rust-impl (major >= 12) = 10 total
+//   - each (pm, version) × every fixture in fixtures/manifest.json
+//
+// Output: one-line JSON for GITHUB_OUTPUT:
+//   {"include":[{pm,pkg,version,impl,fixture}, ...]}
+//
+// Registry responses are cached under .cache/pm-bench/ for 6h so re-runs
+// don't re-hit npm view for every PM.
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -12,9 +19,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const MANIFEST = JSON.parse(
-  fs.readFileSync(path.join(ROOT, "fixtures/manifest.json"), "utf8")
-);
+const CACHE_DIR = path.join(ROOT, ".cache", "pm-bench");
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 const PACKAGES = {
   npm: "npm",
@@ -24,38 +30,67 @@ const PACKAGES = {
   aube: "@endevco/aube",
 };
 
+// How many minor-series per implementation bucket.
+const PER_IMPL = 5;
+
+function implOf(pm, version) {
+  const [maj = 0] = String(version).split(".").map(Number);
+  if (pm === "pnpm") return maj >= 12 ? "rust" : "node";
+  // bun is a single native (Rust/Zig) implementation across versions
+  if (pm === "bun") return "rust";
+  // npm / nub / aube are Node CLIs (aube has a native core but one lineage)
+  return "node";
+}
+
+function cachePath(pkg) {
+  return path.join(CACHE_DIR, pkg.replace("/", "__") + ".json");
+}
+
+function loadCache(pkg) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(cachePath(pkg), "utf8"));
+    if (Date.now() - raw.fetched_at < CACHE_TTL_MS && Array.isArray(raw.versions)) {
+      return raw.versions;
+    }
+  } catch {
+    /* miss */
+  }
+  return null;
+}
+
+function saveCache(pkg, versions) {
+  fs.mkdirSync(CACHE_DIR, { recursive: true });
+  fs.writeFileSync(
+    cachePath(pkg),
+    JSON.stringify({ fetched_at: Date.now(), versions }, null, 0)
+  );
+}
+
 function npmVersions(pkg) {
+  const hit = loadCache(pkg);
+  if (hit) {
+    console.error(`# cache hit ${pkg} (${hit.length} versions)`);
+    return hit;
+  }
   const out = execFileSync("npm", ["view", pkg, "versions", "--json"], {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
+    timeout: 60_000,
   });
-  return JSON.parse(out);
+  let parsed = JSON.parse(out);
+  if (!Array.isArray(parsed)) parsed = [parsed];
+  saveCache(pkg, parsed);
+  console.error(`# fetched ${pkg} (${parsed.length} versions)`);
+  return parsed;
 }
 
 function isStable(v) {
   return !/[-+]/.test(v);
 }
 
-function pickLast2Minor(versions) {
-  const stable = versions.filter(isStable);
-  const groups = new Map();
-  for (const v of stable) {
-    const [maj, min] = v.split(".");
-    const key = `${maj}.${min}`;
-    const prev = groups.get(key);
-    if (!prev || cmpPatch(v, prev) > 0) groups.set(key, v);
-  }
-  const ordered = [...groups.values()].sort(cmpVersion);
-  return ordered.slice(-2);
-}
-
-function cmpPatch(a, b) {
-  return (+a.split(".")[2] || 0) - (+b.split(".")[2] || 0);
-}
-
 function cmpVersion(a, b) {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
+  const pa = String(a).split(".").map(Number);
+  const pb = String(b).split(".").map(Number);
   for (let i = 0; i < 3; i++) {
     const d = (pa[i] || 0) - (pb[i] || 0);
     if (d !== 0) return d;
@@ -63,8 +98,45 @@ function cmpVersion(a, b) {
   return 0;
 }
 
-const fixtures = Object.keys(MANIFEST);
-const matrix = [];
+function cmpPatch(a, b) {
+  return (+String(a).split(".")[2] || 0) - (+String(b).split(".")[2] || 0);
+}
+
+/** latest patch per major.minor, ordered oldest → newest */
+function minorSeries(versions) {
+  const stable = versions.filter(isStable);
+  const groups = new Map();
+  for (const v of stable) {
+    const [maj, min] = String(v).split(".");
+    const key = `${maj}.${min}`;
+    const prev = groups.get(key);
+    if (!prev || cmpPatch(v, prev) > 0) groups.set(key, v);
+  }
+  return [...groups.values()].sort(cmpVersion);
+}
+
+function pickLast(ordered, n) {
+  return ordered.slice(-n);
+}
+
+function pickPerImpl(ordered, pm, n) {
+  const byImpl = { node: [], rust: [] };
+  for (const v of ordered) {
+    const impl = implOf(pm, v);
+    if (byImpl[impl]) byImpl[impl].push(v);
+  }
+  const out = [];
+  for (const impl of ["node", "rust"]) {
+    out.push(...pickLast(byImpl[impl], n).map((version) => ({ version, impl })));
+  }
+  return out;
+}
+
+const fixtures = Object.keys(
+  JSON.parse(fs.readFileSync(path.join(ROOT, "fixtures/manifest.json"), "utf8"))
+);
+
+const include = [];
 for (const [pm, pkg] of Object.entries(PACKAGES)) {
   let versions;
   try {
@@ -73,11 +145,28 @@ for (const [pm, pkg] of Object.entries(PACKAGES)) {
     console.error(`# failed to fetch versions for ${pkg}: ${e.message}`);
     continue;
   }
-  for (const version of pickLast2Minor(versions)) {
+  const ordered = minorSeries(versions);
+  const picks =
+    pm === "pnpm" ? pickPerImpl(ordered, pm, PER_IMPL) : pickLast(ordered, PER_IMPL).map((version) => ({ version, impl: implOf(pm, version) }));
+
+  for (const { version, impl } of picks) {
     for (const fixture of fixtures) {
-      matrix.push({ pm, pkg, version, fixture });
+      include.push({ pm, pkg, version, impl, fixture });
     }
   }
+  console.error(
+    `# ${pm}: ${picks.map((p) => `${p.version}(${p.impl})`).join(", ")} × ${fixtures.length} fixtures`
+  );
 }
 
-console.log(JSON.stringify(matrix));
+// Stable order: fixture, pm, version desc
+const pmOrder = Object.keys(PACKAGES);
+include.sort((a, b) => {
+  const f = fixtures.indexOf(a.fixture) - fixtures.indexOf(b.fixture);
+  if (f !== 0) return f;
+  const p = pmOrder.indexOf(a.pm) - pmOrder.indexOf(b.pm);
+  if (p !== 0) return p;
+  return cmpVersion(b.version, a.version);
+});
+
+process.stdout.write(JSON.stringify({ include }));

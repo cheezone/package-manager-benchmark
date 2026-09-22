@@ -132,11 +132,19 @@ COLD_PREPARE="$CACHE_WIPE; $NM_WIPE; rm -f $LOCKFILES"
 
 # aube --version prints "2.2.4 linux-x64 (2026-08-31)" — keep only the semver
 _raw_ver="$($version_cmd 2>/dev/null || true)"
-PM_VERSION="$(printf '%s\n' "$_raw_ver" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?' | head -n1)"
+PM_VERSION="$(_raw_ver=printf '%s\n' "$_raw_ver"; printf '%s\n' "$_raw_ver" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?' | head -n1)"
 PM_VERSION="${PM_VERSION:-unknown}"
 NODE_VERSION="$(node --version)"
+# node vs rust lineage (pnpm 12+ / bun are rust)
+PM_IMPL="$(node -e '
+  const pm=process.argv[1], ver=String(process.argv[2]||process.argv[3]||"");
+  const maj=+ver.split(".")[0]||0;
+  if (pm==="pnpm") process.stdout.write(maj>=12?"rust":"node");
+  else if (pm==="bun") process.stdout.write("rust");
+  else process.stdout.write("node");
+' "$PM" "$REQ_VER" "$PM_VERSION")"
 
-echo "==> Benchmarking '$PM'  fixture=$FIXTURE  (pm=$PM_VERSION, requested=$REQ_VER, node=$NODE_VERSION)"
+echo "==> Benchmarking '$PM'  fixture=$FIXTURE  (pm=$PM_VERSION/$PM_IMPL, requested=$REQ_VER, node=$NODE_VERSION)"
 echo "==> workdir: $WORK"
 
 # ---------- hyperfine helpers ----------
@@ -229,6 +237,7 @@ report run_noop "$STAT/noop"
 
 # ---------- write results ----------
 export PM PM_VERSION REQ_VER FIXTURE NODE_VERSION OUT_JSON STAT
+export PM_IMPL
 export HF_RUNS_COLD HF_RUNS_WARM HF_RUNS_FROZEN HF_RUNS_NOOP
 export SCHEMA_VERSION=7
 export PKG_COUNT
@@ -253,10 +262,11 @@ const warm = load("warm");
 const frozen = load("frozen");
 const noop = load("noop");
 const o = {
-  schema: 6,
+  schema: 7,
   fixture: process.env.FIXTURE,
   pm: process.env.PM,
   pm_version: process.env.PM_VERSION,
+  impl: process.env.PM_IMPL || null,
   requested_version: process.env.REQ_VER || null,
   node_version: process.env.NODE_VERSION,
   recorded_at: new Date().toISOString(),

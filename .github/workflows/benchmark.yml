@@ -16,40 +16,39 @@ concurrency:
   group: pages-${{ github.ref }}
   cancel-in-progress: false
 
-# Matrix includes every vendored fixture (handle / vitesse) × PM × version.
-# Regenerate with `node .github/scripts/matrix.mjs` and paste here.
 jobs:
+  # Resolve (pm × version × fixture) from the npm registry. Version lists are
+  # cached (.cache/pm-bench) so re-runs don't re-query every PM.
+  matrix:
+    name: Resolve matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/pm-bench
+          key: pm-bench-versions-${{ github.run_id }}
+          restore-keys: |
+            pm-bench-versions-
+      - id: build
+        run: |
+          node .github/scripts/matrix.mjs > /tmp/matrix.json
+          echo "matrix=$(cat /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
+          echo "Resolved matrix:"
+          node -e 'const m=require("/tmp/matrix.json"); console.log("combos:", m.include.length); for (const r of m.include) console.log(" ", r.fixture, r.pm, r.version, r.impl)'
+
   benchmark:
-    name: ${{ matrix.fixture }} · ${{ matrix.pm }}@${{ matrix.version }}
+    name: ${{ matrix.fixture }} · ${{ matrix.pm }}@${{ matrix.version }} (${{ matrix.impl }})
+    needs: matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # ---- handle (vendored fixtures/handle @ 2003b777) ----
-          - { fixture: handle,  pm: npm,  version: 11.19.1 }
-          - { fixture: handle,  pm: npm,  version: 12.0.2 }
-          - { fixture: handle,  pm: pnpm, version: 11.27.1 }
-          - { fixture: handle,  pm: pnpm, version: 12.4.2 }
-          - { fixture: handle,  pm: pnpm, version: 12.5.1 }
-          - { fixture: handle,  pm: bun,  version: 1.3.14 }
-          - { fixture: handle,  pm: bun,  version: 1.4.2 }
-          - { fixture: handle,  pm: nub,  version: 0.8.3 }
-          - { fixture: handle,  pm: nub,  version: 0.9.3 }
-          - { fixture: handle,  pm: aube, version: 2.1.0 }
-          - { fixture: handle,  pm: aube, version: 2.2.4 }
-          # ---- vitesse (vendored fixtures/vitesse @ 136a8b52) ----
-          - { fixture: vitesse, pm: npm,  version: 11.19.1 }
-          - { fixture: vitesse, pm: npm,  version: 12.0.2 }
-          - { fixture: vitesse, pm: pnpm, version: 11.27.1 }
-          - { fixture: vitesse, pm: pnpm, version: 12.4.2 }
-          - { fixture: vitesse, pm: pnpm, version: 12.5.1 }
-          - { fixture: vitesse, pm: bun,  version: 1.3.14 }
-          - { fixture: vitesse, pm: bun,  version: 1.4.2 }
-          - { fixture: vitesse, pm: nub,  version: 0.8.3 }
-          - { fixture: vitesse, pm: nub,  version: 0.9.3 }
-          - { fixture: vitesse, pm: aube, version: 2.1.0 }
-          - { fixture: vitesse, pm: aube, version: 2.2.4 }
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
 
