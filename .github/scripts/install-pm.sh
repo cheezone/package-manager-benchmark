@@ -1,29 +1,45 @@
 #!/usr/bin/env bash
-# Installs the LATEST version of the requested package manager.
+# Installs a (optionally pinned) version of the requested package manager.
+# Usage: install-pm.sh <pm> [version]
 set -euo pipefail
 
+# Remove any corepack shims so the npm-global binaries we install below take
+# precedence (otherwise `pnpm`/`yarn` could resolve to a stale corepack shim).
+corepack disable 2>/dev/null || true
+
 PM="$1"
+VER="${2:-}"
 
 case "$PM" in
   npm)
-    npm install -g npm@latest
+    if [[ -n "$VER" ]]; then npm install -g "npm@$VER"; else npm install -g npm@latest; fi
     ;;
   pnpm)
-    npm install -g pnpm@latest
+    if [[ -n "$VER" ]]; then npm install -g "pnpm@$VER"; else npm install -g pnpm@latest; fi
     ;;
   nub)
-    npm install -g @nubjs/nub@latest
+    if [[ -n "$VER" ]]; then npm install -g "@nubjs/nub@$VER"; else npm install -g @nubjs/nub@latest; fi
     ;;
   aube)
-    npm install -g @endevco/aube@latest
+    if [[ -n "$VER" ]]; then npm install -g "@endevco/aube@$VER"; else npm install -g @endevco/aube@latest; fi
     ;;
   yarn)
     corepack enable
-    corepack prepare yarn@latest --activate
+    if [[ -n "$VER" ]]; then corepack prepare "yarn@$VER" --activate; else corepack prepare yarn@latest --activate; fi
     ;;
   bun)
-    curl -fsSL https://bun.sh/install | bash
-    echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+    if [[ -n "$VER" ]]; then
+      # Pinned version: download the exact release binary.
+      curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${VER}/bun-linux-x64.zip" -o /tmp/bun.zip
+      rm -rf /tmp/bun-extract && mkdir -p /tmp/bun-extract
+      ( cd /tmp/bun-extract && unzip -o /tmp/bun.zip >/dev/null 2>&1 )
+      mkdir -p "$HOME/.bun/bin"
+      mv /tmp/bun-extract/bun-linux-x64/bun "$HOME/.bun/bin/bun"
+      echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+    else
+      curl -fsSL https://bun.sh/install | bash
+      echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+    fi
     ;;
   *)
     echo "unknown pm: $PM" >&2

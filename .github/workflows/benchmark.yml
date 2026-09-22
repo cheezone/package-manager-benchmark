@@ -9,13 +9,37 @@ permissions:
   contents: read
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Generate the matrix: for each PM, its last 3 minor-series releases.
+  # ---------------------------------------------------------------------------
+  setup:
+    name: Generate matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - id: gen
+        name: Compute last-3-versions matrix
+        run: |
+          MATRIX=$(node .github/scripts/matrix.mjs)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Resolved matrix:"
+          echo "$MATRIX" | node -e 'const m=JSON.parse(require("fs").readFileSync(0,"utf8"));for(const x of m)console.log(`  ${x.pm}@${x.version}`)'
+
+  # ---------------------------------------------------------------------------
+  # One job per (PM, version) combo. Times install/run with hyperfine.
+  # ---------------------------------------------------------------------------
   benchmark:
-    name: Bench ${{ matrix.pm }}
+    name: Bench ${{ matrix.pm }}@${{ matrix.version }}
+    needs: setup
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        pm: [npm, pnpm, bun, nub, aube, yarn]
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -24,23 +48,33 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install package manager (${{ matrix.pm }})
-        run: bash .github/scripts/install-pm.sh ${{ matrix.pm }}
+      - name: Install hyperfine (timing tool)
+        run: |
+          curl -fsSL https://github.com/sharkdp/hyperfine/releases/download/v1.20.0/hyperfine-v1.20.0-x86_64-unknown-linux-gnu.tar.gz -o /tmp/hf.tgz
+          tar -xzf /tmp/hf.tgz -C /tmp
+          echo "/tmp/hyperfine-v1.20.0-x86_64-unknown-linux-gnu" >> "$GITHUB_PATH"
+          hyperfine --version
+
+      - name: Install package manager (${{ matrix.pm }}@${{ matrix.version }})
+        run: bash .github/scripts/install-pm.sh ${{ matrix.pm }} ${{ matrix.version }}
 
       - name: Print versions
         run: bash .github/scripts/versions.sh ${{ matrix.pm }}
 
       - name: Run benchmark
-        run: bash bench.sh ${{ matrix.pm }}
+        run: bash bench.sh ${{ matrix.pm }} ${{ matrix.version }}
 
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: results-${{ matrix.pm }}
-          path: results/${{ matrix.pm }}.json
+          name: results-${{ matrix.pm }}-${{ matrix.version }}
+          path: results/${{ matrix.pm }}-${{ matrix.version }}.json
           if-no-files-found: warn
 
+  # ---------------------------------------------------------------------------
+  # Merge every per-combo artifact and render the Markdown comparison table.
+  # ---------------------------------------------------------------------------
   aggregate:
     name: Aggregate results
     needs: benchmark
