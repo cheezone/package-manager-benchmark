@@ -3,91 +3,45 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Package Manager Benchmark</title>
-  <meta name="description" content="npm / pnpm / bun / nub / aube 在真实仓库与统一夹具上的可信性能对比。" />
+  <title>包管理器性能对比</title>
   <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <p class="kicker">Telemetry · Package Managers</p>
-      <h1>谁装得更快，谁跑得更快</h1>
-      <p class="sub">
-        在 <strong>真实开源仓库</strong>（antfu/handle · vitesse）与统一 monorepo 上，
-        用 hyperfine 多次采样对比 npm / pnpm / bun / nub / aube。每个数字带标准差，可复现。
-      </p>
-      <div class="meta-row" id="meta-row">
-        <span>生成时间 <b id="meta-time">—</b></span>
-        <span>环境 <b id="meta-env">—</b></span>
-        <span>样本 <b id="meta-n">—</b></span>
-      </div>
+      <h1>包管理器性能对比</h1>
+      <p class="sub">真实仓库夹具 · hyperfine 均值 ± 标准差 · 越低越好</p>
     </header>
 
-    <div class="controls">
-      <span class="seg-label">仓库</span>
-      <div class="seg" id="fixture-seg" role="tablist" aria-label="Fixture"></div>
-      <span class="seg-label">场景</span>
-      <div class="seg" id="scenario-seg" role="tablist" aria-label="Scenario"></div>
-      <span class="seg-label">刻度</span>
-      <div class="seg" id="mode-seg" role="tablist" aria-label="Scale mode">
-        <button type="button" data-mode="rel" aria-pressed="true">相对倍数</button>
-        <button type="button" data-mode="abs" aria-pressed="false">绝对时间</button>
-      </div>
+    <div class="bar">
+      <label>仓库</label>
+      <div class="seg" id="fixture-seg"></div>
+      <label>场景</label>
+      <div class="seg" id="scenario-seg"></div>
     </div>
 
-    <div class="podium" id="podium"></div>
-
-    <section class="card" id="main-chart-card">
-      <div class="card-head">
-        <h2 id="main-title">对比</h2>
-        <span class="badge" id="main-badge">mean ± sd</span>
-      </div>
-      <p class="desc" id="main-desc"></p>
-      <div class="chart" id="main-chart"></div>
-      <div class="axis" id="main-axis"><span>0</span><span id="axis-max"></span></div>
-    </section>
-
-    <section class="block-title">全部场景速览 · 每格取该 PM 最新版本</section>
-    <div class="card">
-      <p class="desc">小图便于一眼扫完五个场景；条越短越好。</p>
-      <div class="sm-grid" id="sm-grid"></div>
-    </div>
-
-    <section class="block-title">版本趋势 · 冷安装</section>
     <div class="card">
       <div class="card-head">
-        <h2>新版本真的更快了吗？</h2>
-        <span class="badge">older → newer</span>
+        <h2 id="chart-title">—</h2>
+        <span class="meta" id="chart-meta"></span>
       </div>
-      <p class="desc">同一 PM 最近两个 minor 系列，点越低越快。</p>
-      <div class="slope-wrap" id="slope"></div>
+      <div id="chart" class="chart"></div>
     </div>
 
-    <section class="block-title">完整数据</section>
-    <div class="table-wrap" id="table-wrap"></div>
-
-    <section class="block-title">方法与公平性</section>
-    <div class="method">
-      <h2>How we measure</h2>
-      <ul>
-        <li><strong>真实仓库</strong>：<code>antfu/handle@2003b777</code>（汉字 Wordle，Vue3+Vite monorepo）与 <code>vitesse@136a8b52</code>（Vite+Vue 模板，钉在 pnpm catalog 引入之前，保证多 PM 可装）。</li>
-        <li><strong>统一夹具</strong>：<code>synthetic</code> monorepo（lodash/dayjs/typescript…）用于隔离 PM 自身开销。</li>
-        <li><strong>多次采样</strong>：hyperfine 输出 mean ± stddev，不是单次秒表。</li>
-        <li><strong>可控缓存</strong>：冷安装清空该 PM 缓存与 lockfile；热安装保留缓存；冻结安装走 <code>npm ci</code> / <code>--frozen-lockfile</code>。</li>
-        <li><strong>归一化</strong>：夹具准备时去掉 <code>packageManager</code> 钉扎、postinstall 钩子与 pnpm-only 配置，避免 corepack / git-hooks 干扰计时。</li>
-        <li><strong>真实构建</strong>：<code>run_build</code> 直接跑仓库自己的 <code>build</code> 脚本（vite / vite-ssg）。</li>
-        <li><strong>诚实标注</strong>：每个场景记录 hyperfine 的退出码；全失败或「构建耗时 ≈ 空脚本」的结果标为失败并从榜单剔除，避免把报错秒退当成「快」。</li>
-        <li><strong>不含 yarn</strong>。</li>
-      </ul>
+    <div class="card">
+      <div class="card-head">
+        <h2>数据表</h2>
+        <label class="switch">
+          <input type="checkbox" id="all-versions" />
+          <span>显示多版本</span>
+        </label>
+      </div>
+      <div class="table-wrap" id="table-wrap"></div>
     </div>
 
-    <footer>
-      源码与复现 ·
-      <a href="https://github.com/cheezone/package-manager-benchmark">cheezone/package-manager-benchmark</a>
-      · 数值越低越好 · 以 CI（ubuntu-latest）数据为准
-    </footer>
+    <p class="foot" id="foot"></p>
   </div>
-
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

@@ -26,7 +26,7 @@ const rows = files
   }));
 
 const order = ["npm", "pnpm", "bun", "nub", "aube"];
-const fixtureOrder = ["synthetic", "handle", "vitesse"];
+const fixtureOrder = ["handle", "vitesse"];
 rows.sort((a, b) => {
   const fd =
     (fixtureOrder.indexOf(a.fixture) + 99) % 99 -
@@ -73,7 +73,6 @@ function cell(v) {
 
 // Fixture labels for markdown
 const fxLabel = {
-  synthetic: "synthetic monorepo",
   handle: "antfu/handle",
   vitesse: "antfu-collective/vitesse",
 };

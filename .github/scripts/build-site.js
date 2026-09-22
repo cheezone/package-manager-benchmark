@@ -34,7 +34,7 @@ const meta = raw.meta || {
   pm_order: ["npm", "pnpm", "bun", "nub", "aube"],
   fixtures: [...new Set(rows.map((r) => r.fixture))],
   fixture_labels: {
-    synthetic: "Synthetic",
+    synthetic: "合成 monorepo",
     handle: "antfu/handle",
     vitesse: "vitesse",
   },
@@ -48,7 +48,7 @@ meta.fixtures = [
   ...[...present].filter((f) => !prefer.includes(f)),
 ];
 meta.fixture_labels = {
-  synthetic: "Synthetic",
+  synthetic: "合成 monorepo",
   handle: "antfu/handle",
   vitesse: "vitesse",
   ...(meta.fixture_labels || {}),
