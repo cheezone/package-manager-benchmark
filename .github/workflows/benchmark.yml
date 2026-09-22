@@ -36,9 +36,8 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: false
+# do not lock the whole workflow — a new push was cancelling pending
+# dispatch runs (GitHub cancels earlier *pending* runs in the same group).
 
 jobs:
   matrix:
@@ -163,6 +162,9 @@ jobs:
   deploy:
     name: Deploy GitHub Pages
     needs: aggregate
+    concurrency:
+      group: pages-deploy-${{ github.ref }}
+      cancel-in-progress: false
     if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
