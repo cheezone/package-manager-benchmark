@@ -313,6 +313,7 @@
           return latest.get(key) === r;
         });
 
+    // best per scenario across visible rows
     const best = {};
     for (const s of SCEN) {
       let b = null;
@@ -323,38 +324,51 @@
       best[s] = b;
     }
 
-    show.sort((a, b) => {
-      const d = PM_ORDER.indexOf(a.pm) - PM_ORDER.indexOf(b.pm);
-      if (d !== 0) return d;
-      return cmpVer(b.pm_version, a.pm_version);
-    });
+    // group by PM (stable PM_ORDER), versions newest first
+    const groups = PM_ORDER.map((pm) => ({
+      pm,
+      rows: show
+        .filter((r) => r.pm === pm)
+        .sort((a, b) => cmpVer(b.pm_version, a.pm_version)),
+    })).filter((g) => g.rows.length);
 
-    const head = ["管理器", "版本", ...SCEN.map((s) => SCEN_CN[s] || s)];
-    const body = show
-      .map((r) => {
-        const key = r.pm + "|" + (implOf(r.pm, r.pm_version) || "");
-        const isLatest = latest.get(key) === r;
-        const tds = SCEN.map((s) => {
-          if (!isOk(r, s)) return `<td class="num fail">失败</td>`;
-          const m = msOf(r, s);
-          if (m == null) return `<td class="num">—</td>`;
-          const cls = best[s] === m ? "num best" : "num";
-          return `<td class="${cls}">${fmtMs(m)}</td>`;
-        }).join("");
-        const tag =
-          state.allVersions && !isLatest ? ` <span class="pill">旧</span>` : "";
-        return `<tr>
-          <td><span class="pm-cell">${nameHtml(r.pm, r.pm_version)}</span></td>
-          <td class="ver">${r.pm_version}${tag}</td>
-          ${tds}
-        </tr>`;
+    const scenHead = SCEN.map((s) => `<th class="num">${SCEN_CN[s] || s}</th>`).join("");
+    const body = groups
+      .map((g) => {
+        const rowsHtml = g.rows
+          .map((r) => {
+            const key = r.pm + "|" + (implOf(r.pm, r.pm_version) || "");
+            const isLatest = latest.get(key) === r;
+            const tds = SCEN.map((s) => {
+              if (!isOk(r, s)) return `<td class="num fail">失败</td>`;
+              const m = msOf(r, s);
+              if (m == null) return `<td class="num">—</td>`;
+              const cls = best[s] === m ? "num best" : "num";
+              return `<td class="${cls}">${fmtMs(m)}</td>`;
+            }).join("");
+            const impl = implOf(r.pm, r.pm_version);
+            return `<tr class="${isLatest ? "is-latest" : "is-old"}">
+              <td class="ver">${r.pm_version}</td>
+              <td class="impl">${impl ? implIconHtml(impl) : ""}</td>
+              ${tds}
+            </tr>`;
+          })
+          .join("");
+        // group header: PM once, rowspan not needed — use a section row
+        return `<tr class="pm-group"><td colspan="${
+          2 + SCEN.length
+        }"><span class="pm-cell">${iconHtml(g.pm)}<span class="pm-name">${
+          g.pm
+        }</span><span class="pm-count">${g.rows.length} 个版本</span></span></td></tr>${rowsHtml}`;
       })
       .join("");
 
-    document.getElementById("table-wrap").innerHTML = `<table>
-      <thead><tr>${head
-        .map((h, i) => (i < 2 ? `<th>${h}</th>` : `<th class="num">${h}</th>`))
-        .join("")}</tr></thead>
+    document.getElementById("table-wrap").innerHTML = `<table class="data-table">
+      <thead><tr>
+        <th>版本</th>
+        <th>实现</th>
+        ${scenHead}
+      </tr></thead>
       <tbody>${body}</tbody>
     </table>`;
   }

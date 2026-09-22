@@ -215,28 +215,63 @@ body {
 }
 
 /* ── Table ────────────────────────────────────────── */
-.table-wrap { overflow-x: auto; }
-table {
-  border-collapse: collapse;
+.table-wrap {
+  overflow-x: auto;
+  /* no max-height — let the full multi-version table grow with the page */
+}
+table.data-table {
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
   font-size: 13px;
 }
-th, td {
-  padding: 12px 14px;
+table.data-table th,
+table.data-table td {
+  padding: 8px 12px;
   text-align: left;
   border-bottom: 1px solid var(--line-soft);
   white-space: nowrap;
 }
-th {
+table.data-table th {
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
   background: var(--bg-soft);
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
-th:first-child { border-radius: 8px 0 0 8px; }
-th:last-child { border-radius: 0 8px 8px 0; }
-tr:last-child td { border-bottom: 0; }
-tbody tr:hover { background: var(--bg-soft); }
+table.data-table th:first-child { border-radius: 8px 0 0 8px; }
+table.data-table th:last-child { border-radius: 0 8px 8px 0; }
+table.data-table td.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-family: var(--mono, ui-monospace, "SF Mono", Menlo, monospace);
+}
+table.data-table td.ver {
+  font-family: var(--mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 12px;
+  width: 7.5em;
+}
+table.data-table td.impl { width: 2.2em; padding-left: 4px; padding-right: 4px; }
+table.data-table tr.pm-group td {
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 12px 8px;
+  font-weight: 600;
+}
+table.data-table tr.pm-group .pm-name { margin-right: 8px; }
+table.data-table tr.pm-group .pm-count {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+table.data-table tbody tr.is-old td { color: var(--muted); }
+table.data-table tbody tr.is-old td.best,
+table.data-table tbody tr.is-old td.fail { color: inherit; }
+table.data-table tbody tr.is-old td.best { color: var(--muted); }
+table.data-table tbody tr:hover td { background: rgba(0, 0, 0, 0.02); }
+table.data-table tr.pm-group:hover td { background: var(--bg-soft); }
 th.num, td.num {
   text-align: right;
   font-family: var(--mono);
