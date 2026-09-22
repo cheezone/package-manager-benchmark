@@ -45,8 +45,13 @@ fs.writeFileSync(
   [
     "trust-policy=off",
     "trustPolicy=off",
-    // aube still runs some lifecycle scripts (nodejieba node-gyp) without this
+    // skip lifecycle for every PM (aube/nub also honor this)
     "ignore-scripts=true",
+    "ignore_scripts=true",
+    // nub/aube defaultTrust can still run "trusted" build scripts
+    "defaultTrust=false",
+    "default-trust=false",
+    "default-trust-builds=false",
     "",
   ].join("\n")
 );

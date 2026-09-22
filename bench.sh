@@ -102,10 +102,12 @@ case "$PM" in
     version_cmd="bun --version"
     ;;
   nub)
-    # nub has no --ignore-scripts either in some versions — keep install only.
-    INSTALL="$(wrap install nub install)"
-    WARM_INSTALL="$(wrap install nub install)"
-    FROZEN_INSTALL="$(wrap install nub install)"
+    # Same contract as npm/pnpm/bun/aube: resolve+link only, no lifecycle.
+    # Without this nub's defaultTrust runs esbuild/nodejieba/vue-demi scripts
+    # (C++ compile) and the install is unfairly charged for that work.
+    INSTALL="$(wrap install nub install --ignore-scripts)"
+    WARM_INSTALL="$(wrap install nub install --ignore-scripts)"
+    FROZEN_INSTALL="$(wrap install nub ci --ignore-scripts)"
     RUN="nub run"
     CACHE_WIPE="rm -rf \"$HOME/.nub\" \"$HOME/.local/share/nub\" \"$HOME/.cache/nub\" \"$WORK/.nub-store\""
     version_cmd="nub --version"
