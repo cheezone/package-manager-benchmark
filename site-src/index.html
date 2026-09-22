@@ -76,6 +76,7 @@
         <li><strong>可控缓存</strong>：冷安装清空该 PM 缓存与 lockfile；热安装保留缓存；冻结安装走 <code>npm ci</code> / <code>--frozen-lockfile</code>。</li>
         <li><strong>归一化</strong>：夹具准备时去掉 <code>packageManager</code> 钉扎、postinstall 钩子与 pnpm-only 配置，避免 corepack / git-hooks 干扰计时。</li>
         <li><strong>真实构建</strong>：<code>run_build</code> 直接跑仓库自己的 <code>build</code> 脚本（vite / vite-ssg）。</li>
+        <li><strong>诚实标注</strong>：每个场景记录 hyperfine 的退出码；全失败或「构建耗时 ≈ 空脚本」的结果标为失败并从榜单剔除，避免把报错秒退当成「快」。</li>
         <li><strong>不含 yarn</strong>。</li>
       </ul>
     </div>

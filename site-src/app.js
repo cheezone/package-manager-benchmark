@@ -89,6 +89,11 @@
     return map;
   }
 
+  function isOk(r, s) {
+    if (r.ok && typeof r.ok[s] === "boolean") return r.ok[s];
+    return norm(r.scenarios?.[s]) != null;
+  }
+
   function sortedForScenario(fixture, scenario) {
     const latest = latestPerPm(fixture);
     return PM_ORDER.filter((p) => latest.has(p))
@@ -98,12 +103,13 @@
         return {
           pm,
           version: r.pm_version,
-          mean: ms(v),
-          sd: sdMs(v),
+          mean: isOk(r, scenario) ? ms(v) : null,
+          sd: isOk(r, scenario) ? sdMs(v) : 0,
+          ok: isOk(r, scenario),
           row: r,
         };
       })
-      .filter((d) => d.mean != null)
+      .filter((d) => d.mean != null && d.ok)
       .sort((a, b) => a.mean - b.mean);
   }
 
@@ -280,6 +286,7 @@
       const items = pms
         .map((pm) => {
           const r = latest.get(pm);
+          if (!isOk(r, s)) return { pm, mean: null };
           return { pm, mean: ms(r.scenarios?.[s]) };
         })
         .filter((x) => x.mean != null)
@@ -454,17 +461,22 @@
       })
       .map((r) => {
         const tds = SCEN.map((s) => {
-          const m = ms(r.scenarios?.[s]);
-          const sd = sdMs(r.scenarios?.[s]);
+          const ok = !(r.ok && typeof r.ok[s] === "boolean") || r.ok[s];
+          const m = ok ? ms(r.scenarios?.[s]) : null;
+          const sd = ok ? sdMs(r.scenarios?.[s]) : 0;
           const isBest =
             m != null && best[r.fixture + ":" + s] === m;
           const txt =
             m == null
-              ? "—"
+              ? ok === false
+                ? "fail"
+                : "—"
               : sd
               ? `${fmtMs(m)} ±${(sd > 1000 ? (sd / 1000).toFixed(2) + "s" : sd.toFixed(1))}`
               : fmtMs(m);
-          return `<td class="num ${isBest ? "cell-best" : ""}">${esc(txt)}</td>`;
+          return `<td class="num ${isBest ? "cell-best" : ""}">${
+            ok === false && m == null ? `<span style="color:#FF6B5A">fail</span>` : esc(txt)
+          }</td>`;
         }).join("");
         return `<tr>
           <td><span class="chip-fx">${esc(r.fixture)}</span></td>
