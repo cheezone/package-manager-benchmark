@@ -1,0 +1,57 @@
+name: Package Manager Benchmark
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Bench ${{ matrix.pm }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pm: [npm, pnpm, bun, nub, aube, yarn]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (latest LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install package manager (${{ matrix.pm }})
+        run: bash .github/scripts/install-pm.sh ${{ matrix.pm }}
+
+      - name: Print versions
+        run: bash .github/scripts/versions.sh ${{ matrix.pm }}
+
+      - name: Run benchmark
+        run: bash bench.sh ${{ matrix.pm }}
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.pm }}
+          path: results/${{ matrix.pm }}.json
+          if-no-files-found: warn
+
+  aggregate:
+    name: Aggregate results
+    needs: benchmark
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          path: all-results
+          merge-multiple: true
+      - name: Build comparison table
+        run: node .github/scripts/aggregate.js all-results
