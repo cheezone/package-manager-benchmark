@@ -29,7 +29,7 @@ const num = (x) => (typeof x === "number" ? x.toFixed(3) : String(x));
 let md = "# Package Manager Benchmark\n\n";
 md += "Lower is better. install_cold = no cache; install_warm = cache + lockfile primed; ";
 md += "run_noop isolates the `pm run` spawn overhead; run_build is a real task ";
-md += "(lodash/dayjs/semver + esbuild bundle of a workspace package).\n\n";
+md += "(lodash/dayjs/semver computation + TypeScript transpile of a workspace package).\n\n";
 
 md += "| " + header.join(" | ") + " |\n";
 md += "|" + header.map(() => "---").join("|") + "|\n";
