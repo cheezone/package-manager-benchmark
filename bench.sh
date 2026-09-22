@@ -10,7 +10,6 @@
 #   install_warm    - cache + lockfile present, node_modules removed (re-link)
 #   install_frozen  - cache + lockfile present, frozen/CI install (pure restore)
 #   run_noop        - `pm run noop` with node_modules present (PM spawn overhead)
-#   run_build       - `pm run <build>` real task
 #
 # Results written to results/<fixture>-<pm>-<version>.json
 set -uo pipefail
@@ -39,10 +38,7 @@ bash "$ROOT/scripts/prepare-fixture.sh" "$FIXTURE" "$ROOT/work" >/dev/null
 WORK="$ROOT/work/$FIXTURE"
 cd "$WORK"
 
-# Read fixture build/noop script names (fallback to generic).
-BUILD_SCRIPT="$(node -e 'try{const m=require("fs").readFileSync(process.argv[1],"utf8");const j=JSON.parse(m);console.log((j.scripts&&j.scripts.build)?"build":"build")}catch{console.log("build")}' "$ROOT/fixtures/manifest.json" 2>/dev/null || echo build)"
-# Prefer the fixture's own `build`; prepare-fixture.sh always injects `noop`.
-RUN_BUILD_CMD="build"
+# Prefer the fixture's own `noop` (prepare-fixture.sh always injects it).
 RUN_NOOP_CMD="noop"
 
 # ---- per-PM command + cache definitions -------------------------------------
@@ -102,18 +98,21 @@ case "$PM" in
     version_cmd="bun --version"
     ;;
   nub)
-    INSTALL="$(wrap nub install --ignore-scripts)"
-    WARM_INSTALL="$(wrap nub install --ignore-scripts)"
-    FROZEN_INSTALL="$(wrap nub install --frozen-lockfile --ignore-scripts)"
+    # nub has no --ignore-scripts either in some versions — keep install only.
+    INSTALL="$(wrap nub install)"
+    WARM_INSTALL="$(wrap nub install)"
+    FROZEN_INSTALL="$(wrap nub install)"
     RUN="nub run"
     CACHE_WIPE="rm -rf \"$HOME/.nub\" \"$HOME/.local/share/nub\" \"$HOME/.cache/nub\" \"$WORK/.nub-store\""
     version_cmd="nub --version"
     ;;
   aube)
-    INSTALL="$(wrap aube install --ignore-scripts)"
-    WARM_INSTALL="$(wrap aube install --ignore-scripts)"
-    FROZEN_INSTALL="$(wrap aube install --frozen-lockfile --ignore-scripts)"
-    RUN="aube run"
+    # aube rejects --ignore-scripts; vlt-benchmarks uses plain `aube install`.
+    # CLI also ships `aubr` as the run entry.
+    INSTALL="$(wrap aube install)"
+    WARM_INSTALL="$(wrap aube install)"
+    FROZEN_INSTALL="$(wrap aube install)"
+    RUN="aubr"
     CACHE_WIPE="rm -rf \"$HOME/.aube\" \"$HOME/.local/share/aube\" \"$HOME/.cache/aube\" \"$WORK/.aube-store\""
     version_cmd="aube --version"
     ;;
@@ -127,7 +126,10 @@ WARM_PREPARE="$NM_WIPE"
 FROZEN_PREPARE="$NM_WIPE"
 COLD_PREPARE="$CACHE_WIPE; $NM_WIPE; rm -f $LOCKFILES"
 
-PM_VERSION="$($version_cmd 2>/dev/null || echo unknown)"
+# aube --version prints "2.2.4 linux-x64 (2026-08-31)" — keep only the semver
+_raw_ver="$($version_cmd 2>/dev/null || true)"
+PM_VERSION="$(printf '%s\n' "$_raw_ver" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?' | head -n1)"
+PM_VERSION="${PM_VERSION:-unknown}"
 NODE_VERSION="$(node --version)"
 
 echo "==> Benchmarking '$PM'  fixture=$FIXTURE  (pm=$PM_VERSION, requested=$REQ_VER, node=$NODE_VERSION)"
@@ -162,7 +164,6 @@ HF_RUNS_COLD="${HF_RUNS_COLD:-2}"
 HF_RUNS_WARM="${HF_RUNS_WARM:-3}"
 HF_RUNS_FROZEN="${HF_RUNS_FROZEN:-3}"
 HF_RUNS_NOOP="${HF_RUNS_NOOP:-5}"
-HF_RUNS_BUILD="${HF_RUNS_BUILD:-3}"
 
 report() {
   # report <name> <statfile>
@@ -217,32 +218,10 @@ hyperfine --runs "$HF_RUNS_NOOP" --warmup 1 \
 hf_stat "$d3/noop.json" "$STAT/noop" || true
 report run_noop "$STAT/noop"
 
-# ---------- Scenario 5: run build (real task) ----------
-d4=$(hf_json)
-hyperfine --runs "$HF_RUNS_BUILD" --warmup 1 \
-  --ignore-failure --export-json "$d4/build.json" \
-  "$RUN $RUN_BUILD_CMD" >/dev/null 2>&1 || true
-hf_stat "$d4/build.json" "$STAT/build" || true
-# Discard "build" that is basically the noop spawn (task did not really run).
-if [[ -f "$STAT/build" && -f "$STAT/noop" ]]; then
-  node -e '
-    const fs = require("fs");
-    const b = fs.readFileSync(process.argv[1], "utf8").split(/\s+/);
-    const n = fs.readFileSync(process.argv[2], "utf8").split(/\s+/);
-    const build = +b[0], okB = +b[2], noop = +n[0];
-    const fake = okB === 1 && build > 0 && build < 0.2 && build < noop * 1.15;
-    if (fake) {
-      fs.writeFileSync(process.argv[1], `0 0 0`);
-      process.exit(0);
-    }
-  ' "$STAT/build" "$STAT/noop" || true
-fi
-report run_build "$STAT/build"
-
 # ---------- write results ----------
 export PM PM_VERSION REQ_VER FIXTURE NODE_VERSION OUT_JSON STAT
-export HF_RUNS_COLD HF_RUNS_WARM HF_RUNS_FROZEN HF_RUNS_NOOP HF_RUNS_BUILD
-export SCHEMA_VERSION=5
+export HF_RUNS_COLD HF_RUNS_WARM HF_RUNS_FROZEN HF_RUNS_NOOP
+export SCHEMA_VERSION=6
 node -e '
 const fs = require("fs");
 const path = require("path");
@@ -263,9 +242,8 @@ const cold = load("cold");
 const warm = load("warm");
 const frozen = load("frozen");
 const noop = load("noop");
-const build = load("build");
 const o = {
-  schema: 5,
+  schema: 6,
   fixture: process.env.FIXTURE,
   pm: process.env.PM,
   pm_version: process.env.PM_VERSION,
@@ -278,21 +256,18 @@ const o = {
     warm: +process.env.HF_RUNS_WARM,
     frozen: +process.env.HF_RUNS_FROZEN,
     noop: +process.env.HF_RUNS_NOOP,
-    build: +process.env.HF_RUNS_BUILD,
   },
   scenarios: {
     install_cold: cold.value,
     install_warm: warm.value,
     install_frozen: frozen.value,
     run_noop: noop.value,
-    run_build: build.value,
   },
   ok: {
     install_cold: cold.ok,
     install_warm: warm.ok,
     install_frozen: frozen.ok,
     run_noop: noop.ok,
-    run_build: build.ok,
   },
 };
 fs.writeFileSync(process.env.OUT_JSON, JSON.stringify(o, null, 2));

@@ -23,9 +23,16 @@ const rows = files
   .map((r) => ({
     ...r,
     fixture: r.fixture || "synthetic",
+    pm_version: cleanVer(r.pm_version),
   }));
 
 const order = ["npm", "pnpm", "bun", "nub", "aube"];
+
+// aube --version may include platform/date; keep only the semver
+function cleanVer(v) {
+  const m = String(v || "").match(/\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/);
+  return m ? m[0] : String(v || "").trim().split(/\s+/)[0];
+}
 const fixtureOrder = ["handle", "vitesse"];
 rows.sort((a, b) => {
   const fd =
@@ -46,14 +53,12 @@ const scenKeys = [
   "install_warm",
   "install_frozen",
   "run_noop",
-  "run_build",
 ];
 const scenLabels = {
   install_cold: "install_cold (ms)",
   install_warm: "install_warm (ms)",
   install_frozen: "install_frozen (ms)",
   run_noop: "run_noop (ms)",
-  run_build: "run_build (ms)",
 };
 
 function norm(v) {
@@ -83,8 +88,7 @@ md += "Fixtures: `synthetic` (内置 monorepo) · `handle` (antfu/handle) · `vi
 md += "- `install_cold` — no cache, no lockfile, no `node_modules`\n";
 md += "- `install_warm` — cache + lockfile primed, `node_modules` removed\n";
 md += "- `install_frozen` — frozen/CI install (`npm ci` / `--frozen-lockfile`)\n";
-md += "- `run_noop` — `pm run noop` spawn overhead\n";
-md += "- `run_build` — fixture's real `build` script\n\n";
+md += "- `run_noop` — `pm run noop` spawn overhead\n\n";
 
 const fixtures = [...new Set(rows.map((r) => r.fixture))];
 for (const fx of fixtures) {

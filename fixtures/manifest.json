@@ -7,7 +7,7 @@
     "desc": "汉字 Wordle · Vue 3 + Vite monorepo · 钉 2003b777",
     "repo": "https://github.com/antfu/handle",
     "sha": "2003b777f507ed18c1c80304fd6894280c56ad58",
-    "build_script": "build",
+    "build_script": null,
     "noop_script": "noop",
     "approx_deps": 39
   },
@@ -19,7 +19,7 @@
     "desc": "Vite + Vue 模板 · 钉 136a8b52（catalog 之前）",
     "repo": "https://github.com/antfu-collective/vitesse",
     "sha": "136a8b521003edf258a28e472525743db7adf080",
-    "build_script": "build",
+    "build_script": null,
     "noop_script": "noop",
     "approx_deps": 51
   }

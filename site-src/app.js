@@ -2,21 +2,27 @@
 (function () {
   const DATA = window.BENCH_DATA || { meta: {}, rows: [] };
   const meta = DATA.meta || {};
-  const rows = (DATA.rows || []).map((r) => ({ fixture: "handle", ...r }));
+  function cleanVer(v) {
+    const m = String(v || "").match(/\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/);
+    return m ? m[0] : String(v || "").trim().split(/\s+/)[0];
+  }
+  const rows = (DATA.rows || []).map((r) => ({
+    fixture: "handle",
+    ...r,
+    pm_version: cleanVer(r.pm_version),
+  }));
 
   const SCEN = meta.scenarios || [
     "install_cold",
     "install_warm",
     "install_frozen",
     "run_noop",
-    "run_build",
   ];
   const SCEN_CN = {
     install_cold: "冷安装",
     install_warm: "热安装",
     install_frozen: "冻结安装",
     run_noop: "脚本启动",
-    run_build: "真实构建",
   };
   const PM_ORDER = meta.pm_order || ["npm", "pnpm", "bun", "nub", "aube"];
   const PM_COLOR = {
@@ -156,7 +162,6 @@
     );
     const values = view.map((d) => +d.mean.toFixed(1));
     const colors = view.map((d) => color(d.pm));
-    const errs = view.map((d) => +d.sd.toFixed(1));
 
     chart.setOption(
       {
@@ -203,30 +208,6 @@
               color: "#1f2328",
               fontSize: 11,
             },
-          },
-          {
-            type: "custom",
-            renderItem: (params, api) => {
-              const i = params.dataIndex;
-              const val = api.value(0);
-              const sd = api.value(1);
-              if (!sd) return null;
-              const x0 = api.coord([Math.max(0, val - sd), i])[0];
-              const x1 = api.coord([val + sd, i])[0];
-              const y = api.coord([val, i])[1];
-              const style = { stroke: "rgba(31,35,40,0.45)", lineWidth: 1.2 };
-              return {
-                type: "group",
-                children: [
-                  { type: "line", shape: { x1: x0, y1: y, x2: x1, y2: y }, style },
-                  { type: "line", shape: { x1: x0, y1: y - 5, x2: x0, y2: y + 5 }, style },
-                  { type: "line", shape: { x1: x1, y1: y - 5, x2: x1, y2: y + 5 }, style },
-                ],
-              };
-            },
-            data: values.map((v, i) => [v, errs[i] || 0]),
-            z: 10,
-            silent: true,
           },
         ],
       },
