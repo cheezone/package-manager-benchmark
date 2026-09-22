@@ -63,15 +63,24 @@ const scenLabels = {
 
 function norm(v) {
   if (v == null) return null;
-  if (typeof v === "number") return { mean: v, stddev: 0 };
-  if (typeof v.mean === "number") return v;
+  if (typeof v === "number") return { mean: v, median: v, stddev: 0, min: v, max: v };
+  if (typeof v.mean === "number") {
+    return {
+      mean: v.mean,
+      median: v.median != null ? v.median : v.mean,
+      stddev: v.stddev || 0,
+      min: v.min != null ? v.min : v.mean,
+      max: v.max != null ? v.max : v.mean,
+    };
+  }
   return null;
 }
 
 function cell(v) {
   const n = norm(v);
   if (!n) return "—";
-  const m = (n.mean * 1000).toFixed(1);
+  // primary: median (hyperfine)
+  const m = (n.median * 1000).toFixed(1);
   const s = n.stddev ? ` ±${(n.stddev * 1000).toFixed(1)}` : "";
   return `${m}${s}`;
 }
@@ -80,7 +89,7 @@ function pkgCell(v, row) {
   const n = norm(v);
   if (!n) return "—";
   const c = row.package_count || 0;
-  const per = c > 0 ? (n.mean * 1000) / c : null;
+  const per = c > 0 ? (n.median * 1000) / c : null;
   const base = cell(v);
   return per != null ? `${base} (${per.toFixed(1)}/pkg)` : base;
 }
@@ -91,7 +100,7 @@ const fxLabel = {
   vitesse: "antfu-collective/vitesse",
 };
 
-let md = "# Package Manager Benchmark (hyperfine, mean ± stddev)\n\n";
+let md = "# Package Manager Benchmark (hyperfine, median ± stddev, 10 runs)\n\n";
 md += "Numbers are milliseconds. **Lower is better.**\n\n";
 md += "Fixtures: `synthetic` (内置 monorepo) · `handle` (antfu/handle) · `vitesse` (antfu-collective/vitesse @ pre-catalog).\n\n";
 md += "- `install_cold` — no cache, no lockfile, no `node_modules`\n";
@@ -110,7 +119,7 @@ for (const fx of fixtures) {
     let b = null;
     for (const r of fxRows) {
       const v = norm(r.scenarios?.[k]);
-      if (v && (b === null || v.mean < b)) b = v.mean;
+      if (v && (b === null || v.median < b)) b = v.median;
     }
     best[k] = b;
   }
@@ -123,7 +132,7 @@ for (const fx of fixtures) {
     const cells = scenKeys.map((k) => {
       const n = norm(s[k]);
       const c = pkgCell(s[k], r);
-      return best[k] != null && n && n.mean === best[k] ? `**${c}**` : c;
+      return best[k] != null && n && n.median === best[k] ? `**${c}**` : c;
     });
     md += `| ${r.pm} | ${r.pm_version} | ${r.package_count ?? "—"} | ${r.node_version} | ${cells.join(" | ")} |\n`;
   }

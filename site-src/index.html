@@ -18,42 +18,40 @@
 
   <div class="wrap">
     <header class="hero">
-      <p class="eyebrow">Package Manager Benchmark</p>
       <h1>谁装得更快</h1>
-      <p class="sub">真实仓库夹具 · hyperfine 多次采样 · 越低越好</p>
+      <p class="sub">真实仓库夹具 · hyperfine 10 次采样 · 主指标中位数 · 越低越好</p>
     </header>
 
-    <div class="bar">
-      <div class="seg" id="fixture-seg"></div>
-      <div class="seg" id="scenario-seg"></div>
-      <label class="switch">
-        <input type="checkbox" id="all-versions" />
-        <span class="switch-ui" aria-hidden="true"></span>
-        <span>显示多版本</span>
-      </label>
-    </div>
+    <section class="board">
+      <div class="bar">
+        <div class="seg" id="fixture-seg"></div>
+        <div class="seg" id="scenario-seg"></div>
+        <label class="switch">
+          <input type="checkbox" id="all-versions" />
+          <span class="switch-ui" aria-hidden="true"></span>
+          <span>显示多版本</span>
+        </label>
+      </div>
 
-    <section class="card">
-      <div class="card-head">
-        <div class="card-title">
-          <span class="idx">01</span>
+      <div class="block">
+        <div class="card-head">
           <h2 id="chart-title">—</h2>
+          <span class="meta" id="chart-meta"></span>
         </div>
-        <span class="meta" id="chart-meta"></span>
+        <div class="legend" id="pm-legend"></div>
+        <div class="chart-wrap">
+          <div id="chart" class="chart"></div>
+          <img class="win-sticker" id="win-sticker" src="assets/leijun-heart-sticker.png" alt="最优" hidden />
+        </div>
       </div>
-      <div class="legend" id="pm-legend"></div>
-      <div id="chart" class="chart"></div>
-    </section>
 
-    <section class="card">
-      <div class="card-head">
-        <div class="card-title">
-          <span class="idx">02</span>
+      <div class="block block-table">
+        <div class="card-head">
           <h2>完整数据</h2>
+          <span class="meta">中位数 · 悬停看均值与区间</span>
         </div>
-        <span class="meta">均值 · 标准差见悬停</span>
+        <div class="table-wrap" id="table-wrap"></div>
       </div>
-      <div class="table-wrap" id="table-wrap"></div>
     </section>
 
     <footer class="foot" id="foot"></footer>

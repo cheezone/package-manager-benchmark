@@ -93,23 +93,37 @@
   }
   function norm(v) {
     if (v == null) return null;
-    if (typeof v === "number") return { mean: v, stddev: 0 };
-    if (typeof v.mean === "number") return v;
+    if (typeof v === "number") return { mean: v, median: v, stddev: 0, min: v, max: v };
+    if (typeof v.mean === "number") {
+      return {
+        mean: v.mean,
+        median: v.median != null ? v.median : v.mean,
+        stddev: v.stddev || 0,
+        min: v.min != null ? v.min : v.mean,
+        max: v.max != null ? v.max : v.mean,
+      };
+    }
     return null;
   }
   function isOk(r, s) {
     if (r.ok && typeof r.ok[s] === "boolean") return r.ok[s];
     return norm(r.scenarios?.[s]) != null;
   }
+  /** 主指标：hyperfine median（无则 mean） */
   function msOf(r, s) {
     if (!isOk(r, s)) return null;
     const n = norm(r.scenarios?.[s]);
-    return n ? n.mean * 1000 : null;
+    return n ? n.median * 1000 : null;
   }
   function sdOf(r, s) {
     if (!isOk(r, s)) return 0;
     const n = norm(r.scenarios?.[s]);
     return n && n.stddev ? n.stddev * 1000 : 0;
+  }
+  function rangeOf(r, s) {
+    const n = norm(r.scenarios?.[s]);
+    if (!n) return null;
+    return { min: n.min * 1000, max: n.max * 1000, mean: n.mean * 1000, median: n.median * 1000 };
   }
   function fmtMs(m) {
     if (m == null) return "—";
@@ -137,14 +151,19 @@
       ? rowsInFx(state.fixture)
       : [...latestPerPm(state.fixture).values()];
     return src
-      .map((r) => ({
-        pm: r.pm,
-        version: r.pm_version,
-        label: labelOf(r.pm, r.pm_version),
-        mean: msOf(r, state.scenario),
-        sd: sdOf(r, state.scenario),
-        ok: isOk(r, state.scenario),
-      }))
+      .map((r) => {
+        const n = norm(r.scenarios?.[state.scenario]);
+        return {
+          pm: r.pm,
+          version: r.pm_version,
+          label: labelOf(r.pm, r.pm_version),
+          mean: msOf(r, state.scenario),
+          sd: sdOf(r, state.scenario),
+          minMs: n ? n.min * 1000 : null,
+          maxMs: n ? n.max * 1000 : null,
+          ok: isOk(r, state.scenario),
+        };
+      })
       .filter((d) => d.mean != null && d.ok)
       .sort((a, b) => a.mean - b.mean);
   }
@@ -210,6 +229,14 @@
     if (!chart) chart = echarts.init(el, null, { renderer: "canvas" });
 
     const view = data.slice().reverse();
+    // 多版本：抬高画布、拉开柱距，避免挤成一团
+    const n = view.length;
+    const elH = state.allVersions
+      ? Math.max(360, n * 36 + 40)
+      : Math.max(280, n * 40 + 32);
+    el.style.height = elH + "px";
+    if (chart) chart.resize();
+
     // y 轴：用 rich 图标代替 (rust)/(zig) 文字
     const rich = {};
     const names = view.map((d, i) => {
@@ -240,7 +267,13 @@
     chart.setOption(
       {
         backgroundColor: "transparent",
-        grid: { left: 8, right: 80, top: 12, bottom: 16, containLabel: true },
+        grid: {
+          left: 8,
+          right: 84,
+          top: state.allVersions ? 20 : 12,
+          bottom: state.allVersions ? 20 : 16,
+          containLabel: true,
+        },
         tooltip: {
           trigger: "item",
           backgroundColor: "#fff",
@@ -249,9 +282,14 @@
           formatter: (p) => {
             const d = view[p.dataIndex];
             if (!d) return "";
-            return `<b>${d.pm}</b> ${d.version}<br/>${fmtMs(d.mean)}${
-              d.sd ? ` ± ${fmtMs(d.sd)}` : ""
-            }`;
+            const lines = [
+              `<b>${d.pm}</b> ${d.version}`,
+              `中位数 ${fmtMs(d.mean)}`,
+            ];
+            if (d.sd) lines.push(`均值± ${fmtMs(d.sd)}`);
+            if (d.minMs != null && d.maxMs != null)
+              lines.push(`区间 ${fmtMs(d.minMs)} – ${fmtMs(d.maxMs)}`);
+            return lines.join("<br/>");
           },
         },
         xAxis: {
@@ -285,7 +323,9 @@
               value: v,
               itemStyle: { color: colors[i], borderRadius: [0, 6, 6, 0] },
             })),
-            barWidth: 18,
+            barWidth: state.allVersions ? 12 : 18,
+            barCategoryGap: state.allVersions ? "42%" : "36%",
+            barGap: "30%",
             showBackground: true,
             backgroundStyle: { color: "#f5f0eb", borderRadius: 6 },
             label: {
@@ -294,6 +334,7 @@
               formatter: (p) => fmtMs(view[p.dataIndex]?.mean),
               color: "#504f49",
               fontSize: 12,
+              distance: 8,
             },
           },
         ],
@@ -332,6 +373,20 @@
         .sort((a, b) => cmpVer(b.pm_version, a.pm_version)),
     })).filter((g) => g.rows.length);
 
+    // 当前场景的全局最快一行 → 雷军比心
+    let winnerId = null;
+    {
+      let bestM = Infinity;
+      for (const r of show) {
+        if (!isOk(r, state.scenario)) continue;
+        const m = msOf(r, state.scenario);
+        if (m != null && m < bestM) {
+          bestM = m;
+          winnerId = r.pm + "@" + r.pm_version + "|" + r.fixture;
+        }
+      }
+    }
+
     const scenHead = SCEN.map((s) => `<th class="num">${SCEN_CN[s] || s}</th>`).join("");
     const body = groups
       .map((g) => {
@@ -339,6 +394,8 @@
           .map((r) => {
             const key = r.pm + "|" + (implOf(r.pm, r.pm_version) || "");
             const isLatest = latest.get(key) === r;
+            const rid = r.pm + "@" + r.pm_version + "|" + r.fixture;
+            const isWin = rid === winnerId;
             const tds = SCEN.map((s) => {
               if (!isOk(r, s)) return `<td class="num fail">失败</td>`;
               const m = msOf(r, s);
@@ -347,8 +404,13 @@
               return `<td class="${cls}">${fmtMs(m)}</td>`;
             }).join("");
             const impl = implOf(r.pm, r.pm_version);
-            return `<tr class="${isLatest ? "is-latest" : "is-old"}">
-              <td class="ver">${r.pm_version}</td>
+            const sticker = isWin
+              ? `<img class="row-sticker" src="assets/leijun-heart-sticker.png" alt="最优" />`
+              : "";
+            return `<tr class="${isLatest ? "is-latest" : "is-old"}${
+              isWin ? " is-winner" : ""
+            }" data-id="${rid}">
+              <td class="ver">${r.pm_version}${sticker}</td>
               <td class="impl">${impl ? implIconHtml(impl) : ""}</td>
               ${tds}
             </tr>`;
@@ -363,7 +425,13 @@
       })
       .join("");
 
-    document.getElementById("table-wrap").innerHTML = `<table class="data-table">
+    // 主图右上角贴纸（最快那根柱在顶部）
+    const stickerEl = document.getElementById("win-sticker");
+    if (stickerEl) stickerEl.hidden = !winnerId;
+
+    document.getElementById("table-wrap").innerHTML = `<table class="data-table${
+      state.allVersions ? " is-multi" : ""
+    }">
       <thead><tr>
         <th>版本</th>
         <th>实现</th>

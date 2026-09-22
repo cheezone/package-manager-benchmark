@@ -35,42 +35,57 @@ body {
 }
 
 /* ── Hero ─────────────────────────────────────────── */
-.hero { margin-bottom: 36px; }
-.eyebrow {
-  margin: 0 0 14px;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  color: var(--accent);
-  font-weight: 500;
+.hero {
+  margin-bottom: 20px;
+  padding: 8px 4px 0;
 }
 .hero h1 {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-family: "MiSans", var(--font);
-  font-size: clamp(36px, 6vw, 56px);
+  font-size: clamp(28px, 4.5vw, 40px);
   font-weight: 700;
   letter-spacing: -0.03em;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--ink);
 }
 .sub {
   margin: 0;
-  font-size: 15px;
-  color: var(--text);
-  max-width: 36em;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* 整页一块连续面板，减少卡片割裂 */
+.board {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 20px 24px 8px;
+}
+.block {
+  padding: 8px 0 20px;
+}
+.block + .block {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 22px;
+}
+.block-table {
+  padding-bottom: 12px;
 }
 
 /* ── Controls ─────────────────────────────────────── */
 .bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 8px;
 }
 .seg {
   display: inline-flex;
-  background: var(--card);
-  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  border: 0;
   border-radius: 999px;
   padding: 3px;
   gap: 2px;
@@ -87,8 +102,9 @@ body {
 }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-pressed="true"] {
-  background: var(--ink);
-  color: #fafafa;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .switch {
@@ -134,34 +150,21 @@ body {
 }
 
 /* ── Cards ────────────────────────────────────────── */
-.card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 28px 28px 20px;
-  margin-bottom: 20px;
-}
 .card-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 .card-title {
   display: flex;
   align-items: baseline;
   gap: 12px;
 }
-.idx {
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--accent);
-  font-weight: 500;
-}
-.card h2 {
+.card-head h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -215,6 +218,40 @@ body {
 }
 
 /* ── Table ────────────────────────────────────────── */
+/* ── Winner sticker ────────────────────────────────── */
+.chart-wrap {
+  position: relative;
+}
+.win-sticker {
+  position: absolute;
+  top: -8px;
+  right: 4px;
+  width: 88px;
+  height: auto;
+  pointer-events: none;
+  transform: rotate(8deg);
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.12));
+  z-index: 2;
+}
+table.data-table tr.is-winner td {
+  background: rgba(255, 103, 0, 0.06);
+}
+table.data-table tr.is-winner td.ver {
+  position: relative;
+  font-weight: 600;
+  color: var(--accent-deep, #eb5600);
+}
+.row-sticker {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  width: 56px;
+  height: auto;
+  transform: translateY(-50%) rotate(6deg);
+  pointer-events: none;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.12));
+  z-index: 3;
+}
 .table-wrap {
   overflow-x: auto;
   /* no max-height — let the full multi-version table grow with the page */
@@ -231,6 +268,12 @@ table.data-table td {
   text-align: left;
   border-bottom: 1px solid var(--line-soft);
   white-space: nowrap;
+}
+/* 多版本行更松 */
+table.data-table.is-multi th,
+table.data-table.is-multi td {
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 table.data-table th {
   font-size: 12px;

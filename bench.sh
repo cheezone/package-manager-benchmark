@@ -150,8 +150,8 @@ echo "==> workdir: $WORK"
 # ---------- hyperfine helpers ----------
 hf_json() { mktemp -d "/tmp/hf.XXXXXX"; }
 
-# Parse one hyperfine --export-json file into $2 (mean stddev ok in seconds).
-# ok=1 when we have a mean AND every exit code is 0 (missing exit_codes => ok).
+# Parse one hyperfine --export-json file into $2 (JSON: mean/stddev/median/min/max/ok).
+# ok=1 when stats exist AND every exit code is 0 (missing exit_codes => ok).
 hf_stat() {
   node -e '
     const fs = require("fs");
@@ -159,10 +159,24 @@ hf_stat() {
       const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
       const r = d.results && d.results[0];
       if (!r || typeof r.mean !== "number") process.exit(1);
-      const sd = r.stddev == null ? 0 : r.stddev;
+      const num = (v) => (v == null || Number.isNaN(+v) ? null : +v);
+      const sd = num(r.stddev) ?? 0;
+      const median = num(r.median) ?? r.mean;
+      const mn = num(r.min) ?? r.mean;
+      const mx = num(r.max) ?? r.mean;
       const codes = (r.exit_codes || []).map(Number);
       const ok = codes.length === 0 || codes.every((c) => c === 0) ? 1 : 0;
-      fs.writeFileSync(process.argv[2], `${r.mean.toFixed(6)} ${sd.toFixed(6)} ${ok}`);
+      fs.writeFileSync(
+        process.argv[2],
+        JSON.stringify({
+          mean: +r.mean,
+          stddev: sd,
+          median,
+          min: mn,
+          max: mx,
+          ok,
+        })
+      );
     } catch {
       process.exit(1);
     }
@@ -171,25 +185,37 @@ hf_stat() {
 
 STAT="$(mktemp -d /tmp/bstat.XXXXXX)"
 
-# Real-world fixtures are heavier — slightly fewer cold runs keeps CI sane.
-HF_RUNS_COLD="${HF_RUNS_COLD:-2}"
-HF_RUNS_WARM="${HF_RUNS_WARM:-3}"
-HF_RUNS_FROZEN="${HF_RUNS_FROZEN:-3}"
-HF_RUNS_NOOP="${HF_RUNS_NOOP:-5}"
+# 10 runs per scenario (override via env). Primary display metric: median.
+HF_RUNS_COLD="${HF_RUNS_COLD:-10}"
+HF_RUNS_WARM="${HF_RUNS_WARM:-10}"
+HF_RUNS_FROZEN="${HF_RUNS_FROZEN:-10}"
+HF_RUNS_NOOP="${HF_RUNS_NOOP:-10}"
 
 report() {
   # report <name> <statfile>
   local name="$1" sf="$2"
-  local mean="" sd="" ok=0
-  if [[ -f "$sf" ]]; then
-    read -r mean sd ok < "$sf" || true
-  fi
-  if [[ "${ok:-0}" != "1" || -z "${mean:-}" ]]; then
+  if [[ ! -s "$sf" ]]; then
     echo "$name: NA (failed or empty)"
     echo "" > "$sf.missing"
     return 0
   fi
-  echo "$name: ${mean} s (±${sd:-0}) ok=1"
+  node -e '
+    const fs = require("fs");
+    try {
+      const s = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      if (!s || s.ok !== 1 || s.mean == null) process.exit(1);
+      const f = (x) => (+x).toFixed(4);
+      console.log(
+        `${process.argv[2]}: median=${f(s.median)}s mean=${f(s.mean)}s ±${f(s.stddev)} [${f(s.min)}–${f(s.max)}] ok=1`
+      );
+    } catch {
+      process.exit(1);
+    }
+  ' "$sf" "$name" 2>/dev/null || {
+    echo "$name: NA (failed or empty)"
+    echo "" > "$sf.missing"
+    return 0
+  }
 }
 
 # ---------- Scenario 1: cold install ----------
@@ -239,7 +265,7 @@ report run_noop "$STAT/noop"
 export PM PM_VERSION REQ_VER FIXTURE NODE_VERSION OUT_JSON STAT
 export PM_IMPL
 export HF_RUNS_COLD HF_RUNS_WARM HF_RUNS_FROZEN HF_RUNS_NOOP
-export SCHEMA_VERSION=7
+export SCHEMA_VERSION=8
 export PKG_COUNT
 node -e '
 const fs = require("fs");
@@ -247,12 +273,16 @@ const path = require("path");
 const STAT = process.env.STAT;
 function load(key) {
   try {
-    const [mean, sd, ok] = fs
-      .readFileSync(path.join(STAT, key), "utf8")
-      .trim()
-      .split(/\s+/);
-    const o = { mean: +mean, stddev: +sd || 0 };
-    return { value: +ok === 1 ? o : null, ok: +ok === 1 };
+    const s = JSON.parse(fs.readFileSync(path.join(STAT, key), "utf8"));
+    if (!s || typeof s.mean !== "number") return { value: null, ok: false };
+    const o = {
+      mean: s.mean,
+      stddev: s.stddev || 0,
+      median: s.median != null ? s.median : s.mean,
+      min: s.min != null ? s.min : s.mean,
+      max: s.max != null ? s.max : s.mean,
+    };
+    return { value: s.ok === 1 ? o : null, ok: s.ok === 1 };
   } catch {
     return { value: null, ok: false };
   }
@@ -262,7 +292,7 @@ const warm = load("warm");
 const frozen = load("frozen");
 const noop = load("noop");
 const o = {
-  schema: 7,
+  schema: 8,
   fixture: process.env.FIXTURE,
   pm: process.env.PM,
   pm_version: process.env.PM_VERSION,
@@ -287,7 +317,7 @@ const o = {
   // ms per installed package (null when count unknown or scenario failed)
   per_pkg_ms: (() => {
     const n = +process.env.PKG_COUNT || 0;
-    const per = (v) => (v && n > 0 ? +((v.mean * 1000) / n).toFixed(2) : null);
+    const per = (v) => (v && n > 0 ? +(((v.median != null ? v.median : v.mean) * 1000) / n).toFixed(2) : null);
     return {
       install_cold: per(cold.value),
       install_warm: per(warm.value),
