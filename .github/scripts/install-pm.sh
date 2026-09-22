@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # Remove any corepack shims so the npm-global binaries we install below take
-# precedence (otherwise `pnpm`/`yarn` could resolve to a stale corepack shim).
+# precedence (otherwise `pnpm` could resolve to a stale corepack shim).
 corepack disable 2>/dev/null || true
 
 PM="$1"
@@ -22,10 +22,6 @@ case "$PM" in
     ;;
   aube)
     if [[ -n "$VER" ]]; then npm install -g "@endevco/aube@$VER"; else npm install -g @endevco/aube@latest; fi
-    ;;
-  yarn)
-    corepack enable
-    if [[ -n "$VER" ]]; then corepack prepare "yarn@$VER" --activate; else corepack prepare yarn@latest --activate; fi
     ;;
   bun)
     if [[ -n "$VER" ]]; then

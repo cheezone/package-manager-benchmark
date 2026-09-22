@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Monorepo fixture used to benchmark Node.js package managers (npm, pnpm, bun, nub, aube, yarn).",
+  "description": "Monorepo fixture used to benchmark Node.js package managers (npm, pnpm, bun, nub, aube).",
   "workspaces": [
     "packages/*"
   ],

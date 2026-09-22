@@ -15,7 +15,6 @@ const PACKAGES = {
   bun: "bun",
   nub: "@nubjs/nub",
   aube: "@endevco/aube",
-  yarn: "yarn",
 };
 
 function npmVersions(pkg) {

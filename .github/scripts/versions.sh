@@ -11,5 +11,4 @@ case "$PM" in
   bun)  echo "pm:   $(bun --version)" ;;
   nub)  echo "pm:   $(nub --version)" ;;
   aube) echo "pm:   $(aube --version)" ;;
-  yarn) echo "pm:   $(yarn --version)" ;;
 esac
