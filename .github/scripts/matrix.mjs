@@ -145,7 +145,11 @@ for (const [pm, pkg] of Object.entries(PACKAGES)) {
     console.error(`# failed to fetch versions for ${pkg}: ${e.message}`);
     continue;
   }
-  const ordered = minorSeries(versions);
+  const ordered = minorSeries(versions).filter((v) => {
+    // aube 1.x arch-installer is incompatible with npm 12 --allow-scripts
+    if (pm === "aube") return cmpVersion(v, "2.0.0") >= 0;
+    return true;
+  });
   const picks =
     pm === "pnpm" ? pickPerImpl(ordered, pm, PER_IMPL) : pickLast(ordered, PER_IMPL).map((version) => ({ version, impl: implOf(pm, version) }));
 
