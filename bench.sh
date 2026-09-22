@@ -97,7 +97,7 @@ echo "==> Benchmarking '$PM'  (pm=$PM_VERSION, node=$NODE_VERSION)"
 # ---------- Scenario 1: cold install ----------
 cache_wipe
 clean_all
-t0=$(now); $INSTALL >/dev/null 2>&1; t1=$(now)
+t0=$(now); $INSTALL >/dev/null; t1=$(now)
 COLD=$(elapsed "$t0" "$t1")
 echo "install_cold: $COLD s"
 
@@ -110,9 +110,9 @@ echo "install_cold: $COLD s"
 npm_warm_reset() { :; }
 if [ "$PM" = "npm" ]; then npm_warm_reset() { rm -f package-lock.json; }; fi
 clean_node_modules; npm_warm_reset
-$CI_INSTALL >/dev/null 2>&1 || true
+$CI_INSTALL >/dev/null || true
 clean_node_modules; npm_warm_reset
-t0=$(now); $CI_INSTALL >/dev/null 2>&1; t1=$(now)
+t0=$(now); $CI_INSTALL >/dev/null; t1=$(now)
 WARM=$(elapsed "$t0" "$t1")
 echo "install_warm: $WARM s"
 
