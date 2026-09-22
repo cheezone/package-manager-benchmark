@@ -235,38 +235,36 @@
     const el = document.getElementById("chart");
     if (!chart) chart = echarts.init(el, null, { renderer: "canvas" });
 
+    const mobile = window.innerWidth < 720;
     const view = data.slice().reverse();
     // 多版本：抬高画布、拉开柱距，避免挤成一团
     const n = view.length;
     const elH = state.allVersions
-      ? Math.max(360, n * 36 + 40)
-      : Math.max(280, n * 40 + 32);
+      ? Math.max(mobile ? 320 : 360, n * (mobile ? 32 : 36) + 40)
+      : Math.max(mobile ? 280 : 280, n * (mobile ? 36 : 40) + 32);
     el.style.height = elH + "px";
     if (chart) chart.resize();
 
-    // y 轴：用 rich 图标代替 (rust)/(zig) 文字
+    // y 轴：图标 + 名称 + 实现语言小标（手机也保留，只是更小）
     const rich = {};
     const names = view.map((d, i) => {
       const impl = implOf(d.pm, d.version);
       rich["pm" + i] = {
-        width: 18,
-        height: 18,
+        width: mobile ? 14 : 18,
+        height: mobile ? 14 : 18,
         backgroundColor: { image: PM_ICON[d.pm] || "" },
         borderRadius: 3,
       };
+      const nameTxt = state.allVersions ? `${d.pm} ${d.version}` : d.pm;
       if (impl && IMPL_ICON[impl]) {
         rich["im" + i] = {
-          width: 14,
-          height: 14,
+          width: mobile ? 12 : 14,
+          height: mobile ? 12 : 14,
           backgroundColor: { image: IMPL_ICON[impl] },
         };
-        return state.allVersions
-          ? `{pm${i}|} ${d.pm} {im${i}|} ${d.version}`
-          : `{pm${i}|} ${d.pm} {im${i}|}`;
+        return `{pm${i}|} ${nameTxt} {im${i}|}`;
       }
-      return state.allVersions
-        ? `{pm${i}|} ${d.pm} ${d.version}`
-        : `{pm${i}|} ${d.pm}`;
+      return `{pm${i}|} ${nameTxt}`;
     });
     const values = view.map((d) => +d.mean.toFixed(1));
     const colors = view.map((d) => color(d.pm));
@@ -274,11 +272,12 @@
     chart.setOption(
       {
         backgroundColor: "transparent",
+        animation: !mobile,
         grid: {
-          left: 8,
-          right: 84,
-          top: state.allVersions ? 20 : 12,
-          bottom: state.allVersions ? 20 : 16,
+          left: 2,
+          right: mobile ? 52 : 64,
+          top: 8,
+          bottom: mobile ? 28 : 16,
           containLabel: true,
         },
         tooltip: {
@@ -295,7 +294,6 @@
             ];
             if (d.sd) lines.push(`标准差 ${fmtMs(d.sd)}`);
             const rg = fmtRange(d.minMs, d.maxMs);
-            // 无真实 min/max，或区间退化成一点时不显示
             if (rg && d.maxMs - d.minMs > 0.5) lines.push(`区间 ${rg}`);
             return lines.join("<br/>");
           },
@@ -305,7 +303,9 @@
           axisLabel: {
             formatter: (v) => (v >= 1000 ? v / 1000 + "s" : v + "ms"),
             color: "#979696",
-            fontSize: 11,
+            fontSize: mobile ? 10 : 11,
+            hideOverlap: true,
+            margin: 8,
           },
           splitLine: { lineStyle: { color: "#ede9e7" } },
           axisLine: { show: false },
@@ -316,10 +316,11 @@
           data: names,
           axisLabel: {
             color: "#26251e",
-            fontSize: 13,
+            fontSize: mobile ? 11 : 13,
             rich,
-            // 数据里已是 {pm0|} 富文本
             formatter: (v) => v,
+            hideOverlap: true,
+            margin: 6,
           },
           axisLine: { show: false },
           axisTick: { show: false },
@@ -331,9 +332,9 @@
               value: v,
               itemStyle: { color: colors[i], borderRadius: [0, 6, 6, 0] },
             })),
-            barWidth: state.allVersions ? 12 : 18,
-            barCategoryGap: state.allVersions ? "42%" : "36%",
-            barGap: "30%",
+            barWidth: state.allVersions ? (mobile ? 10 : 12) : mobile ? 14 : 18,
+            barCategoryGap: state.allVersions ? "38%" : "32%",
+            barGap: "28%",
             showBackground: true,
             backgroundStyle: { color: "#f5f0eb", borderRadius: 6 },
             label: {
@@ -341,8 +342,8 @@
               position: "right",
               formatter: (p) => fmtMs(view[p.dataIndex]?.mean),
               color: "#504f49",
-              fontSize: 12,
-              distance: 8,
+              fontSize: mobile ? 10 : 12,
+              distance: mobile ? 4 : 6,
             },
           },
         ],
@@ -356,7 +357,8 @@
   /** 浮贴纸贴在最快一根柱的数值右侧（不占图表布局） */
   function placeWinFloat(view, values) {
     const tip = document.getElementById("win-float");
-    if (!tip || !chart) return;
+    const wrap = tip && tip.parentElement;
+    if (!tip || !chart || !wrap) return;
     if (!view.length) {
       tip.hidden = true;
       return;
@@ -373,10 +375,17 @@
       tip.hidden = true;
       return;
     }
-    // 柱端 + 数值文字（约 44px）再留一点缝
+    const wrapW = wrap.clientWidth || 320;
+    const tipW = tip.offsetWidth || 40;
+    // 柱端 + 数值文字；右侧不够时贴到容器内并略靠上，避免溢出
+    const gap = window.innerWidth < 720 ? 36 : 48;
+    let left = px[0] + gap;
+    if (left + tipW > wrapW - 4) left = Math.max(4, wrapW - tipW - 4);
+    let top = px[1];
+    if (left <= px[0] + 8) top = px[1] - 24;
     tip.hidden = false;
-    tip.style.left = Math.round(px[0] + 48) + "px";
-    tip.style.top = Math.round(px[1]) + "px";
+    tip.style.left = Math.round(left) + "px";
+    tip.style.top = Math.round(top) + "px";
   }
 
   function renderTable() {
@@ -471,6 +480,22 @@
     </table>`;
   }
 
+  /** 点击贴纸：放大再弹回 */
+  function bindWinPop() {
+    const tip = document.getElementById("win-float");
+    if (!tip || tip.dataset.bound) return;
+    tip.dataset.bound = "1";
+    const pop = () => {
+      tip.classList.remove("is-pop");
+      void tip.offsetWidth;
+      tip.classList.add("is-pop");
+    };
+    tip.addEventListener("click", pop);
+    tip.addEventListener("animationend", (e) => {
+      if (e.animationName === "rotate-scale-up") tip.classList.remove("is-pop");
+    });
+  }
+
   function renderFoot() {
     const t = (meta.generated_at || "").replace("T", " ").slice(0, 19);
     document.getElementById("foot").innerHTML =
@@ -483,6 +508,7 @@
     renderLegend();
     renderChart();
     renderTable();
+    bindWinPop();
     renderFoot();
   }
 

@@ -226,15 +226,25 @@ body {
   position: absolute;
   width: 48px;
   height: auto;
-  pointer-events: none;
+  cursor: pointer;
+  pointer-events: auto;
   z-index: 4;
   transform: translate(0, -50%) rotate(8deg);
   filter: brightness(1.15) saturate(1.12)
     drop-shadow(0 2px 8px rgba(255, 103, 0, 0.35));
   animation: win-bob 2s ease-in-out infinite;
+  transform-origin: center center;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 .win-float[hidden] {
   display: none !important;
+}
+.win-float.is-pop {
+  -webkit-animation: rotate-scale-up 0.65s linear both;
+  animation: rotate-scale-up 0.65s linear both;
+  will-change: transform;
 }
 @keyframes win-bob {
   0%,
@@ -242,7 +252,36 @@ body {
     transform: translate(0, -50%) rotate(8deg) scale(1);
   }
   50% {
-    transform: translate(0, calc(-50% - 3px)) rotate(4deg) scale(1.06);
+    transform: translate(0, calc(-50% - 3px)) rotate(8deg) scale(1.04);
+  }
+}
+/* Animista: rotate-scale-up（保留 -50% 定位） */
+@-webkit-keyframes rotate-scale-up {
+  0% {
+    -webkit-transform: translate(0, -50%) scale(1) rotateZ(0deg);
+    transform: translate(0, -50%) scale(1) rotateZ(0deg);
+  }
+  50% {
+    -webkit-transform: translate(0, -50%) scale(2) rotateZ(180deg);
+    transform: translate(0, -50%) scale(2) rotateZ(180deg);
+  }
+  100% {
+    -webkit-transform: translate(0, -50%) scale(1) rotateZ(360deg);
+    transform: translate(0, -50%) scale(1) rotateZ(360deg);
+  }
+}
+@keyframes rotate-scale-up {
+  0% {
+    -webkit-transform: translate(0, -50%) scale(1) rotateZ(0deg);
+    transform: translate(0, -50%) scale(1) rotateZ(0deg);
+  }
+  50% {
+    -webkit-transform: translate(0, -50%) scale(2) rotateZ(180deg);
+    transform: translate(0, -50%) scale(2) rotateZ(180deg);
+  }
+  100% {
+    -webkit-transform: translate(0, -50%) scale(1) rotateZ(360deg);
+    transform: translate(0, -50%) scale(1) rotateZ(360deg);
   }
 }
 .table-wrap {
@@ -357,4 +396,130 @@ td.ver {
   padding: 32px;
   text-align: center;
   color: var(--muted);
+}
+
+/* ── Mobile ───────────────────────────────────────── */
+@media (max-width: 720px) {
+  .wrap {
+    padding: 16px 10px 40px;
+  }
+  .hero {
+    margin-bottom: 12px;
+    padding: 2px 2px 0;
+  }
+  .hero h1 {
+    font-size: 24px;
+    margin-bottom: 6px;
+  }
+  .sub {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .board {
+    border-radius: 14px;
+    padding: 12px 10px 4px;
+  }
+  .block {
+    padding: 6px 0 12px;
+  }
+  .block + .block {
+    padding-top: 12px;
+  }
+
+  /* Tabs：可换行 Chip，不裁字、不横向挤 */
+  .bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding-bottom: 12px;
+  }
+  .seg {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: none;
+    overflow: visible;
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    gap: 8px;
+  }
+  .seg button {
+    flex: 0 1 auto;
+    max-width: 100%;
+    background: var(--bg-soft);
+    border-radius: 999px;
+    padding: 9px 13px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .seg button[aria-pressed="true"] {
+    background: var(--ink);
+    color: #fff;
+    box-shadow: none;
+  }
+  .switch {
+    margin-left: 0;
+    justify-content: flex-start;
+    padding: 0 2px;
+  }
+
+  .card-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  .card-head h2 {
+    font-size: 15px;
+  }
+  .legend {
+    gap: 8px 12px;
+    margin-bottom: 6px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .legend-item {
+    flex: 0 0 auto;
+    font-size: 12px;
+  }
+
+  /* 图表撑满可用宽度，柱图优先 */
+  .chart-wrap {
+    margin: 0 -4px;
+  }
+  .chart {
+    height: 320px;
+    width: 100%;
+  }
+  .win-float {
+    width: 32px;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -10px;
+    padding: 0 10px;
+  }
+  table.data-table {
+    min-width: 520px;
+    font-size: 12px;
+  }
+  table.data-table th,
+  table.data-table td {
+    padding: 8px 10px;
+  }
+  .foot {
+    margin-top: 20px;
+    padding-top: 12px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .hero h1 { font-size: 22px; }
+  .seg button { padding: 8px 10px; font-size: 12px; }
+  .win-float { width: 28px; }
 }
