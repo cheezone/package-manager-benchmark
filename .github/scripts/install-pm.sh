@@ -18,10 +18,20 @@ case "$PM" in
     if [[ -n "$VER" ]]; then npm install -g "pnpm@$VER"; else npm install -g pnpm@latest; fi
     ;;
   nub)
-    if [[ -n "$VER" ]]; then npm install -g "@nubjs/nub@$VER"; else npm install -g @nubjs/nub@latest; fi
+    # npm 12 blocks dependency lifecycle scripts by default; nub/aube need
+    # their preinstall to drop a native binary. Allow only that package.
+    if [[ -n "$VER" ]]; then
+      npm install -g --allow-scripts=@nubjs/nub "@nubjs/nub@$VER"
+    else
+      npm install -g --allow-scripts=@nubjs/nub @nubjs/nub@latest
+    fi
     ;;
   aube)
-    if [[ -n "$VER" ]]; then npm install -g "@endevco/aube@$VER"; else npm install -g @endevco/aube@latest; fi
+    if [[ -n "$VER" ]]; then
+      npm install -g --allow-scripts=@endevco/aube "@endevco/aube@$VER"
+    else
+      npm install -g --allow-scripts=@endevco/aube @endevco/aube@latest
+    fi
     ;;
   bun)
     if [[ -n "$VER" ]]; then

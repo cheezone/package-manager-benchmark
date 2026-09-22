@@ -22,5 +22,6 @@ dist/
 
 # benchmark results (produced by CI)
 results/
+logs/
 work/
 site/

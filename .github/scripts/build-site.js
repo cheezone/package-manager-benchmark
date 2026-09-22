@@ -17,9 +17,14 @@ if (!fs.existsSync(IN)) {
 }
 
 const raw = JSON.parse(fs.readFileSync(IN, "utf8"));
+function cleanVer(v) {
+  const m = String(v || "").match(/\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/);
+  return m ? m[0] : String(v || "").trim().split(/\s+/)[0];
+}
 const rows = (raw.rows || raw).map((r) => ({
   fixture: "synthetic",
   ...r,
+  pm_version: cleanVer(r.pm_version),
 }));
 const meta = raw.meta || {
   generated_at: new Date().toISOString(),
@@ -58,6 +63,18 @@ fs.mkdirSync(OUT, { recursive: true });
 for (const f of ["index.html", "styles.css", "app.js"]) {
   fs.copyFileSync(path.join(SRC, f), path.join(OUT, f));
 }
+// icons + other static assets
+function copyDir(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, e.name);
+    const d = path.join(dest, e.name);
+    if (e.isDirectory()) copyDir(s, d);
+    else fs.copyFileSync(s, d);
+  }
+}
+const assetsSrc = path.join(SRC, "assets");
+if (fs.existsSync(assetsSrc)) copyDir(assetsSrc, path.join(OUT, "assets"));
 const dataJs =
   "window.BENCH_DATA = " +
   JSON.stringify({ meta, rows }, null, 0) +

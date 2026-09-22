@@ -76,6 +76,15 @@ function cell(v) {
   return `${m}${s}`;
 }
 
+function pkgCell(v, row) {
+  const n = norm(v);
+  if (!n) return "—";
+  const c = row.package_count || 0;
+  const per = c > 0 ? (n.mean * 1000) / c : null;
+  const base = cell(v);
+  return per != null ? `${base} (${per.toFixed(1)}/pkg)` : base;
+}
+
 // Fixture labels for markdown
 const fxLabel = {
   handle: "antfu/handle",
@@ -88,7 +97,8 @@ md += "Fixtures: `synthetic` (内置 monorepo) · `handle` (antfu/handle) · `vi
 md += "- `install_cold` — no cache, no lockfile, no `node_modules`\n";
 md += "- `install_warm` — cache + lockfile primed, `node_modules` removed\n";
 md += "- `install_frozen` — frozen/CI install (`npm ci` / `--frozen-lockfile`)\n";
-md += "- `run_noop` — `pm run noop` spawn overhead\n\n";
+md += "- `run_noop` — `pm run noop` spawn overhead\n";
+md += "- `pkgs` — unique packages installed (ms/pkg in parentheses on install columns)\n\n";
 
 const fixtures = [...new Set(rows.map((r) => r.fixture))];
 for (const fx of fixtures) {
@@ -105,17 +115,17 @@ for (const fx of fixtures) {
     best[k] = b;
   }
 
-  const header = ["PM", "Version", "Node", ...scenKeys.map((k) => scenLabels[k])];
+  const header = ["PM", "Version", "pkgs", "Node", ...scenKeys.map((k) => scenLabels[k])];
   md += "| " + header.join(" | ") + " |\n";
   md += "|" + header.map(() => "---").join("|") + "|\n";
   for (const r of fxRows) {
     const s = r.scenarios || {};
     const cells = scenKeys.map((k) => {
       const n = norm(s[k]);
-      const c = cell(s[k]);
+      const c = pkgCell(s[k], r);
       return best[k] != null && n && n.mean === best[k] ? `**${c}**` : c;
     });
-    md += `| ${r.pm} | ${r.pm_version} | ${r.node_version} | ${cells.join(" | ")} |\n`;
+    md += `| ${r.pm} | ${r.pm_version} | ${r.package_count ?? "—"} | ${r.node_version} | ${cells.join(" | ")} |\n`;
   }
 }
 

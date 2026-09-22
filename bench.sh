@@ -29,7 +29,9 @@ fi
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 RESULTS_DIR="$ROOT/results"
-mkdir -p "$RESULTS_DIR"
+LOG_DIR="$ROOT/logs/${FIXTURE}-${PM}-${REQ_VER:-latest}"
+rm -rf "$LOG_DIR"
+mkdir -p "$RESULTS_DIR" "$LOG_DIR"
 # Always prefix fixture so CI artifact globs never collide across fixtures.
 OUT_JSON="$RESULTS_DIR/${FIXTURE}-${PM}-${REQ_VER:-latest}.json"
 
@@ -50,19 +52,21 @@ RUN_NOOP_CMD="noop"
 NM_WIPE="rm -rf node_modules; rm -rf packages/core/node_modules packages/cli/node_modules packages/tools/node_modules 2>/dev/null; true"
 LOCKFILES="package-lock.json pnpm-lock.yaml bun.lock bun.lockb nub.lock aube-lock.yaml aube.lock"
 
-# vlt-benchmarks style: ignore lifecycle scripts so every PM measures
-# resolve+link only (avoids ERR_PNPM_IGNORED_BUILDS / native builds hanging).
-# And wrap every install with a hard timeout so one bad combo cannot stall.
+# Bare install command + log redirect. HYPERFINE_ITERATION is 0-based in logs
+# (hyperfine sets it for --prepare/command; fall back to 0).
+LOG="$LOG_DIR"
 BENCH_TIMEOUT="${BENCH_TIMEOUT:-180}"
-TO="timeout"
-command -v timeout >/dev/null 2>&1 || TO="perl -e 'alarm shift; exec @ARGV' $BENCH_TIMEOUT"
-# fallback if GNU timeout missing (macOS): use perl alarm as the wrapper
 wrap() {
+  # wrap <name> <cmd...>  →  timeout-wrapped cmd with per-iteration log
+  local name="$1"; shift
+  local cmd="$*"
+  local body
   if command -v timeout >/dev/null 2>&1; then
-    echo "timeout $BENCH_TIMEOUT $*"
+    body="timeout $BENCH_TIMEOUT $cmd"
   else
-    echo "perl -e 'alarm shift; exec @ARGV' $BENCH_TIMEOUT $*"
+    body="perl -e 'alarm shift; exec @ARGV' $BENCH_TIMEOUT $cmd"
   fi
+  echo "{ $body; } >> \"$LOG/\${HYPERFINE_ITERATION:-0}-$name.log\" 2>&1"
 }
 
 case "$PM" in
@@ -71,9 +75,9 @@ case "$PM" in
     # clash under a fresh resolve; same trick as vlt-benchmarks' "large" fixture.
     NPM_EXTRA=""
     [[ "$FIXTURE" == "vitesse" ]] && NPM_EXTRA="--legacy-peer-deps"
-    INSTALL="$(wrap npm install --no-audit --no-fund --ignore-scripts $NPM_EXTRA)"
-    WARM_INSTALL="$(wrap npm install --prefer-offline --no-audit --no-fund --ignore-scripts $NPM_EXTRA)"
-    FROZEN_INSTALL="$(wrap npm ci --prefer-offline --no-audit --no-fund --ignore-scripts $NPM_EXTRA)"
+    INSTALL="$(wrap install npm install --no-audit --no-fund --ignore-scripts $NPM_EXTRA)"
+    WARM_INSTALL="$(wrap install npm install --prefer-offline --no-audit --no-fund --ignore-scripts $NPM_EXTRA)"
+    FROZEN_INSTALL="$(wrap install npm ci --prefer-offline --no-audit --no-fund --ignore-scripts $NPM_EXTRA)"
     RUN="npm run"
     CACHE_WIPE="rm -rf \"$HOME/.npm\""
     version_cmd="npm --version"
@@ -81,27 +85,27 @@ case "$PM" in
   pnpm)
     export PNPM_STORE_DIR="${PNPM_STORE_DIR:-$WORK/.pnpm-store}"
     pnpm config set store-dir "$PNPM_STORE_DIR" >/dev/null 2>&1 || true
-    INSTALL="$(wrap pnpm install --store-dir $PNPM_STORE_DIR --ignore-scripts)"
-    WARM_INSTALL="$(wrap pnpm install --store-dir $PNPM_STORE_DIR --prefer-offline --ignore-scripts)"
-    FROZEN_INSTALL="$(wrap pnpm install --store-dir $PNPM_STORE_DIR --frozen-lockfile --prefer-offline --ignore-scripts)"
+    INSTALL="$(wrap install pnpm install --store-dir $PNPM_STORE_DIR --ignore-scripts)"
+    WARM_INSTALL="$(wrap install pnpm install --store-dir $PNPM_STORE_DIR --prefer-offline --ignore-scripts)"
+    FROZEN_INSTALL="$(wrap install pnpm install --store-dir $PNPM_STORE_DIR --frozen-lockfile --prefer-offline --ignore-scripts)"
     RUN="pnpm run"
     CACHE_WIPE="rm -rf \"$PNPM_STORE_DIR\""
     version_cmd="pnpm --version"
     ;;
   bun)
     export BUN_INSTALL_CACHE_DIR="${BUN_INSTALL_CACHE_DIR:-$WORK/.bun-cache}"
-    INSTALL="$(wrap bun install --ignore-scripts)"
-    WARM_INSTALL="$(wrap bun install --ignore-scripts)"
-    FROZEN_INSTALL="$(wrap bun install --frozen-lockfile --ignore-scripts)"
+    INSTALL="$(wrap install bun install --ignore-scripts)"
+    WARM_INSTALL="$(wrap install bun install --ignore-scripts)"
+    FROZEN_INSTALL="$(wrap install bun install --frozen-lockfile --ignore-scripts)"
     RUN="bun run"
     CACHE_WIPE="rm -rf \"$BUN_INSTALL_CACHE_DIR\""
     version_cmd="bun --version"
     ;;
   nub)
     # nub has no --ignore-scripts either in some versions — keep install only.
-    INSTALL="$(wrap nub install)"
-    WARM_INSTALL="$(wrap nub install)"
-    FROZEN_INSTALL="$(wrap nub install)"
+    INSTALL="$(wrap install nub install)"
+    WARM_INSTALL="$(wrap install nub install)"
+    FROZEN_INSTALL="$(wrap install nub install)"
     RUN="nub run"
     CACHE_WIPE="rm -rf \"$HOME/.nub\" \"$HOME/.local/share/nub\" \"$HOME/.cache/nub\" \"$WORK/.nub-store\""
     version_cmd="nub --version"
@@ -109,9 +113,9 @@ case "$PM" in
   aube)
     # aube rejects --ignore-scripts; vlt-benchmarks uses plain `aube install`.
     # CLI also ships `aubr` as the run entry.
-    INSTALL="$(wrap aube install)"
-    WARM_INSTALL="$(wrap aube install)"
-    FROZEN_INSTALL="$(wrap aube install)"
+    INSTALL="$(wrap install aube install)"
+    WARM_INSTALL="$(wrap install aube install)"
+    FROZEN_INSTALL="$(wrap install aube install)"
     RUN="aubr"
     CACHE_WIPE="rm -rf \"$HOME/.aube\" \"$HOME/.local/share/aube\" \"$HOME/.cache/aube\" \"$WORK/.aube-store\""
     version_cmd="aube --version"
@@ -209,6 +213,11 @@ hyperfine --runs "$HF_RUNS_FROZEN" --warmup 0 \
 hf_stat "$dF/frozen.json" "$STAT/frozen" || true
 report install_frozen "$STAT/frozen"
 
+# ---------- package count (after a successful warm install) ----------
+( [ -d node_modules ] || $WARM_INSTALL >/dev/null 2>&1 ) || true
+PKG_COUNT="$(node "$ROOT/scripts/count-packages.js" . 2>/dev/null || echo 0)"
+echo "package_count: $PKG_COUNT"
+
 # ---------- Scenario 4: run noop (PM spawn overhead) ----------
 ( [ -d node_modules ] || $WARM_INSTALL >/dev/null 2>&1 ) || true
 d3=$(hf_json)
@@ -221,7 +230,8 @@ report run_noop "$STAT/noop"
 # ---------- write results ----------
 export PM PM_VERSION REQ_VER FIXTURE NODE_VERSION OUT_JSON STAT
 export HF_RUNS_COLD HF_RUNS_WARM HF_RUNS_FROZEN HF_RUNS_NOOP
-export SCHEMA_VERSION=6
+export SCHEMA_VERSION=7
+export PKG_COUNT
 node -e '
 const fs = require("fs");
 const path = require("path");
@@ -251,6 +261,7 @@ const o = {
   node_version: process.env.NODE_VERSION,
   recorded_at: new Date().toISOString(),
   platform: `${process.platform}-${process.arch}`,
+  package_count: +process.env.PKG_COUNT || 0,
   hyperfine_runs: {
     cold: +process.env.HF_RUNS_COLD,
     warm: +process.env.HF_RUNS_WARM,
@@ -263,6 +274,16 @@ const o = {
     install_frozen: frozen.value,
     run_noop: noop.value,
   },
+  // ms per installed package (null when count unknown or scenario failed)
+  per_pkg_ms: (() => {
+    const n = +process.env.PKG_COUNT || 0;
+    const per = (v) => (v && n > 0 ? +((v.mean * 1000) / n).toFixed(2) : null);
+    return {
+      install_cold: per(cold.value),
+      install_warm: per(warm.value),
+      install_frozen: per(frozen.value),
+    };
+  })(),
   ok: {
     install_cold: cold.ok,
     install_warm: warm.ok,
