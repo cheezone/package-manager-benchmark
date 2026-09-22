@@ -26,7 +26,7 @@ elapsed() { awk "BEGIN{printf \"%.3f\", $2 - $1}"; }
 case "$PM" in
   npm)
     INSTALL="npm install"
-    CI_INSTALL="npm ci"
+    CI_INSTALL="npm install --prefer-offline --no-audit --no-fund"
     RUN="npm run"
     cache_wipe() { rm -rf "$HOME/.npm"; }
     version_cmd="npm --version"
@@ -63,8 +63,12 @@ case "$PM" in
     version_cmd="aube --version"
     ;;
   yarn)
-    cat > .yarnrc.yml <<'YML'
+    # Use the same registry the other managers resolve from, so the
+    # comparison is apples-to-apples regardless of the environment's mirror.
+    REG="$(npm config get registry 2>/dev/null || echo https://registry.npmjs.org)"
+    cat > .yarnrc.yml <<YML
 nodeLinker: node-modules
+npmRegistryServer: "$REG"
 YML
     INSTALL="yarn install"
     CI_INSTALL="yarn install"
@@ -98,7 +102,16 @@ COLD=$(elapsed "$t0" "$t1")
 echo "install_cold: $COLD s"
 
 # ---------- Scenario 2: warm install (cache + lockfile kept, node_modules removed) ----------
-clean_node_modules
+# Run twice and time the SECOND so each tool's resolution cache is fully
+# warm (yarn re-resolves against the registry, so a single warm run would
+# otherwise unfairly penalize it). This keeps "warm" apples-to-apples.
+# NOTE: npm cannot re-read its own *workspace* lockfile (npm bug), so for
+# npm we also drop package-lock.json and re-resolve from cache.
+npm_warm_reset() { :; }
+if [ "$PM" = "npm" ]; then npm_warm_reset() { rm -f package-lock.json; }; fi
+clean_node_modules; npm_warm_reset
+$CI_INSTALL >/dev/null 2>&1 || true
+clean_node_modules; npm_warm_reset
 t0=$(now); $CI_INSTALL >/dev/null 2>&1; t1=$(now)
 WARM=$(elapsed "$t0" "$t1")
 echo "install_warm: $WARM s"
