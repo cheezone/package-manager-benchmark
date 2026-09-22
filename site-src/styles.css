@@ -523,3 +523,17 @@ td.ver {
   .seg button { padding: 8px 10px; font-size: 12px; }
   .win-float { width: 28px; }
 }
+
+.note {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.note code {
+  font-family: var(--mono, ui-monospace, Menlo, monospace);
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 4px;
+  border-radius: 3px;
+}

@@ -500,7 +500,8 @@
     const t = (meta.generated_at || "").replace("T", " ").slice(0, 19);
     document.getElementById("foot").innerHTML =
       `${t ? t + " UTC · " : ""}Node LTS · ${rows.length} 条 · ` +
-      `<a href="https://github.com/cheezone/package-manager-benchmark">源码</a>`;
+      `<a href="https://github.com/cheezone/package-manager-benchmark">源码</a>` +
+      ` · 结果缓存于 data/bench，可按需重测`;
   }
 
   function render() {

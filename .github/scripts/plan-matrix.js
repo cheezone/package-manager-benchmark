@@ -16,6 +16,16 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { hasUsable, cleanVer } from "../../scripts/result-store.js";
 
+function cmpVer(a, b) {
+  const pa = String(a).split(".").map(Number);
+  const pb = String(b).split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 const only = (env) =>
@@ -50,6 +60,17 @@ const full = JSON.parse(raw);
 
 let skipped = 0;
 let include = (full.include || []).filter((r) => {
+  // handle pulls nodejieba@2.5.2; on Node 24 its prebuild is missing and
+  // nub < 0.8 still ran defaultTrust lifecycle → install cannot succeed.
+  // Keep those cells out of the matrix; they are documented as known gaps.
+  if (
+    r.fixture === "handle" &&
+    r.pm === "nub" &&
+    cmpVer(r.version, "0.8.0") < 0
+  ) {
+    skipped++;
+    return false;
+  }
   if (!inList(ONLY_FIXTURES, r.fixture)) {
     skipped++;
     return false;

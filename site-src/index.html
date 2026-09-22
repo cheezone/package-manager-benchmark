@@ -55,6 +55,10 @@
     </section>
 
     <footer class="foot" id="foot"></footer>
+    <p class="note" id="known-issues">
+      已知缺口：handle 依赖里的 <code>nodejieba@2.5.2</code> 在 Node 24 无预编译包；旧 nub（&lt;0.8）默认会跑 lifecycle 从而安装失败——矩阵已收窄到 nub≥0.8（handle）。
+      全部安装均 <code>--ignore-scripts</code>，只测 resolve+link。
+    </p>
   </div>
   <script src="data.js"></script>
   <script src="app.js"></script>
