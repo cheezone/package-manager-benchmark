@@ -26,9 +26,12 @@ jobs:
         name: Compute last-3-versions matrix
         run: |
           MATRIX=$(node .github/scripts/matrix.mjs)
-          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-          echo "Resolved matrix:"
-          echo "$MATRIX" | node -e 'const m=JSON.parse(require("fs").readFileSync(0,"utf8"));for(const x of m)console.log(`  ${x.pm}@${x.version}`)'
+          {
+            echo "matrix<<MATRIX_EOF"
+            echo "$MATRIX"
+            echo "MATRIX_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved matrix: $MATRIX"
 
   # ---------------------------------------------------------------------------
   # One job per (PM, version) combo. Times install/run with hyperfine.

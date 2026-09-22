@@ -72,19 +72,23 @@ case "$PM" in
     version_cmd="aube --version"
     ;;
   yarn)
-    # Mirror vltpkg/benchmarks' proven berry setup: explicit corepack version
-    # (no reliance on a packageManager field), immutable installs disabled,
-    # no mirror, node-modules linker. Reliably works on CI Linux runners.
-    cat > .yarnrc.yml <<'YML'
+    # yarn's npm package ships classic 1.x AND berry 2.4.3 (3.x/4.x are
+    # distributed via corepack/GitHub, not npm). We benchmark whatever version
+    # is requested and tune the cache handling for classic vs berry:
+    #   - berry  (>=2): node-modules linker, .yarnrc.yml, cache in ~/.yarn
+    #   - classic (<2): plain node_modules, cache in ~/.cache/yarn
+    YV="${REQ_VER:-latest}"
+    if [[ "$YV" == "latest" ]] || [[ "$(printf '%s\n2.0.0' "$YV" | sort -V | head -1)" == "2.0.0" ]]; then
+      cat > .yarnrc.yml <<'YML'
 enableImmutableInstalls: false
 enableMirror: false
 nodeLinker: node-modules
 YML
-    YV="${REQ_VER:-latest}"
+    fi
     INSTALL="corepack yarn@$YV install"
     CI_INSTALL="corepack yarn@$YV install"
     RUN="corepack yarn@$YV run"
-    CACHE_WIPE="rm -rf \"$HOME/.yarn\" \"$PWD/.yarn\""
+    CACHE_WIPE="rm -rf \"$HOME/.yarn\" \"$HOME/.cache/yarn\" \"$PWD/.yarn\""
     WARM_PREPARE="rm -rf node_modules"
     version_cmd="corepack yarn@$YV --version"
     ;;
